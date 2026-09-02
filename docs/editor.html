@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de PDF · online</title>
+<meta name="description" content="Edite o texto de um arquivo PDF direto no navegador. O arquivo não é enviado para servidor nenhum.">
+<link rel="icon" href="icone.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root {
+  --papel: #f6f7fb;
+  --superficie: #ffffff;
+  --superficie-2: #eef1f8;
+  --tinta: #131a33;
+  --tinta-suave: #4a5470;
+  --tinta-fraca: #78829c;
+  --linha: #d9dee9;
+  --linha-forte: #b9c2d6;
+  --azul: #3f57c9;
+  --azul-fraco: #dfe4fa;
+  --vermelho: #c1272d;
+  --verde: #1f7a4d;
+  --verde-fraco: #dff3e8;
+  --mesa: #5b6070;
+  --sombra: 0 1px 2px rgba(19, 26, 51, .06), 0 8px 24px -12px rgba(19, 26, 51, .18);
+  --display: "Archivo", "Segoe UI", Helvetica, Arial, sans-serif;
+  --corpo: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papel: #0f131d; --superficie: #161c2a; --superficie-2: #1d2434;
+    --tinta: #e6ebf7; --tinta-suave: #aab4cc; --tinta-fraca: #8390ab;
+    --linha: #2a3245; --linha-forte: #3a4459;
+    --azul: #8fa3ff; --azul-fraco: #232b45;
+    --vermelho: #ff8a8a; --verde: #6ddba4; --verde-fraco: #16301f;
+    --mesa: #070a12;
+    --sombra: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"] {
+  --papel: #0f131d; --superficie: #161c2a; --superficie-2: #1d2434;
+  --tinta: #e6ebf7; --tinta-suave: #aab4cc; --tinta-fraca: #8390ab;
+  --linha: #2a3245; --linha-forte: #3a4459;
+  --azul: #8fa3ff; --azul-fraco: #232b45;
+  --vermelho: #ff8a8a; --verde: #6ddba4; --verde-fraco: #16301f;
+  --mesa: #070a12;
+  --sombra: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.8);
+}
+
+* { box-sizing: border-box; }
+/* precisa vir depois dos seletores de id, senao "display" deles vence */
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--papel); color: var(--tinta);
+  font-family: var(--corpo); font-size: 16px; line-height: 1.6;
+  display: flex; flex-direction: column; -webkit-font-smoothing: antialiased;
+}
+body.arrastando { outline: 3px dashed var(--azul); outline-offset: -10px; }
+img { display: block; max-width: 100%; }
+a { color: var(--azul); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.2; text-wrap: balance; }
+
+/* ---------- cabecalho ---------- */
+.topo {
+  display: flex; align-items: center; gap: 1rem; padding: .6rem 1.1rem;
+  border-bottom: 1px solid var(--linha); background: var(--superficie);
+}
+.marca { display: flex; align-items: center; gap: .55rem; font-family: var(--display); font-weight: 600; }
+.marca img { width: 26px; height: 26px; }
+.marca .tag {
+  font-family: var(--mono); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--verde); background: var(--verde-fraco); padding: .15rem .45rem; border-radius: 4px;
+}
+.topo .direita { margin-left: auto; display: flex; align-items: center; gap: .9rem; font-family: var(--display); font-size: .85rem; }
+.topo .direita a { color: var(--tinta-suave); text-decoration: none; }
+.topo .direita a:hover { color: var(--azul); }
+
+/* ---------- botoes ---------- */
+button, .botao {
+  font-family: var(--display); font-size: .86rem; font-weight: 600;
+  padding: .45rem .8rem; border-radius: 6px; border: 1px solid var(--linha-forte);
+  background: var(--superficie); color: var(--tinta); cursor: pointer;
+  display: inline-flex; align-items: center; gap: .4rem; text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+button:hover:not(:disabled), .botao:hover { border-color: var(--azul); color: var(--azul); }
+button:disabled { opacity: .4; cursor: default; }
+button.destaque, .botao.destaque {
+  background: var(--tinta); color: var(--papel); border-color: var(--tinta);
+}
+button.destaque:hover:not(:disabled), .botao.destaque:hover { background: var(--azul); border-color: var(--azul); color: #fff; }
+.contador {
+  font-family: var(--mono); font-size: .7rem; background: var(--vermelho); color: #fff;
+  border-radius: 20px; padding: 0 .4rem; min-width: 1.15rem; text-align: center;
+}
+
+/* ---------- barra de ferramentas ---------- */
+.ferramentas {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  padding: .55rem 1.1rem; border-bottom: 1px solid var(--linha); background: var(--superficie);
+}
+.ferramentas .separador { width: 1px; align-self: stretch; background: var(--linha); margin: 0 .3rem; }
+.ferramentas .paginacao { display: flex; align-items: center; gap: .35rem; font-family: var(--mono); font-size: .8rem; color: var(--tinta-fraca); }
+.ferramentas input[type="number"] {
+  width: 3.4rem; text-align: center; font-family: var(--mono); font-size: .8rem;
+  padding: .3rem; border: 1px solid var(--linha-forte); border-radius: 5px;
+  background: var(--superficie); color: var(--tinta);
+}
+
+/* ---------- inicio (sem arquivo) ---------- */
+#inicio {
+  flex: 1; display: grid; place-items: center; padding: 3rem 1.5rem;
+}
+.entrada { max-width: 34rem; text-align: center; }
+.entrada h1 { font-size: clamp(1.8rem, 1.3rem + 2vw, 2.6rem); letter-spacing: -.02em; }
+.entrada p { color: var(--tinta-suave); margin: 1rem 0 0; }
+.entrada .alvo {
+  margin-top: 2rem; border: 2px dashed var(--linha-forte); border-radius: 14px;
+  padding: 2.5rem 1.5rem; background: var(--superficie);
+}
+.entrada .alvo p { font-size: .9rem; margin-top: .8rem; }
+.privacidade {
+  margin-top: 1.6rem; font-family: var(--mono); font-size: .74rem; color: var(--tinta-fraca);
+  display: inline-flex; align-items: center; gap: .5rem;
+}
+.privacidade::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--verde);
+}
+
+/* ---------- area de trabalho ---------- */
+#area { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 23rem; min-height: 0; }
+@media (max-width: 900px) { #area { grid-template-columns: 1fr; } }
+
+.mesa { background: var(--mesa); overflow: auto; padding: 1.6rem; display: flex; justify-content: center; align-items: flex-start; }
+#folha { position: relative; box-shadow: 0 4px 24px rgba(0,0,0,.35); background: #fff; }
+#tela { display: block; }
+#camada { position: absolute; inset: 0; }
+.trecho {
+  position: absolute; cursor: text; border-radius: 2px;
+  outline: 1px solid rgba(63, 87, 201, .35); outline-offset: 1px;
+  display: flex; align-items: center; white-space: pre; overflow: visible;
+  line-height: 1;
+}
+.trecho:hover { outline-color: var(--azul); background: rgba(63, 87, 201, .09); }
+.trecho.ativo { outline: 2px solid var(--vermelho); outline-offset: 2px; }
+.trecho.editado { outline-color: var(--verde); }
+
+/* ---------- painel lateral ---------- */
+.painel { border-left: 1px solid var(--linha); background: var(--superficie); display: flex; flex-direction: column; min-height: 0; }
+.painel .rotulo {
+  font-family: var(--display); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--tinta-fraca); padding: .9rem 1.1rem .5rem;
+}
+#lista { list-style: none; margin: 0; padding: 0 .5rem .5rem; overflow-y: auto; flex: 1; min-height: 6rem; }
+#lista li {
+  display: grid; grid-template-columns: 1.9rem 1fr; gap: .5rem; align-items: baseline;
+  padding: .3rem .5rem; border-radius: 5px; cursor: pointer; font-size: .87rem;
+}
+#lista li:hover { background: var(--superficie-2); }
+#lista li.ativo { background: var(--azul-fraco); }
+#lista li.editado .conteudo { color: var(--verde); }
+#lista .ordem { font-family: var(--mono); font-size: .7rem; color: var(--tinta-fraca); text-align: right; }
+#lista .conteudo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.edicao { border-top: 1px solid var(--linha); padding: 1rem 1.1rem 1.2rem; }
+#semSelecao { color: var(--tinta-fraca); font-size: .88rem; }
+#detalhes {
+  display: grid; grid-template-columns: auto 1fr; gap: .25rem .8rem;
+  font-family: var(--mono); font-size: .73rem; margin: 0 0 .9rem;
+}
+#detalhes dt { color: var(--tinta-fraca); }
+#detalhes dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#campo {
+  width: 100%; min-height: 5.5rem; resize: vertical; padding: .6rem .7rem;
+  font-family: var(--mono); font-size: .84rem; line-height: 1.5;
+  border: 1px solid var(--linha-forte); border-radius: 7px;
+  background: var(--papel); color: var(--tinta);
+}
+.acoes-edicao { display: flex; gap: .5rem; margin-top: .7rem; flex-wrap: wrap; }
+.dica { font-size: .76rem; color: var(--tinta-fraca); margin: .7rem 0 0; }
+
+/* ---------- rodape / avisos ---------- */
+.situacao {
+  border-top: 1px solid var(--linha); background: var(--superficie);
+  padding: .45rem 1.1rem; font-family: var(--mono); font-size: .74rem; color: var(--tinta-fraca);
+}
+#aviso {
+  position: fixed; left: 50%; bottom: 3.2rem; transform: translateX(-50%);
+  max-width: min(90vw, 34rem); background: var(--tinta); color: var(--papel);
+  padding: .8rem 1.1rem; border-radius: 9px; font-size: .88rem; box-shadow: var(--sombra); z-index: 30;
+}
+
+/* ---------- dialogo ---------- */
+dialog {
+  border: 1px solid var(--linha); border-radius: 12px; padding: 1.4rem;
+  background: var(--superficie); color: var(--tinta); box-shadow: var(--sombra); max-width: 26rem;
+}
+dialog::backdrop { background: rgba(10, 14, 25, .5); }
+dialog h2 { font-size: 1.05rem; margin-bottom: .9rem; }
+dialog label { display: block; font-size: .8rem; color: var(--tinta-suave); margin-top: .7rem; }
+dialog input[type="text"] {
+  width: 100%; padding: .45rem .6rem; margin-top: .25rem; font-family: var(--mono); font-size: .84rem;
+  border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--papel); color: var(--tinta);
+}
+dialog .marcar { display: flex; align-items: center; gap: .5rem; margin-top: .9rem; font-size: .84rem; }
+dialog .rodape-dialogo { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.2rem; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<input type="file" id="arquivo" accept="application/pdf,.pdf" hidden>
+
+<header class="topo">
+  <span class="marca">
+    <img src="icone.png" alt=""> Editor de PDF <span class="tag">online</span>
+  </span>
+  <span class="direita">
+    <a href="index.html">Sobre o projeto</a>
+    <a class="botao" href="https://github.com/SEU-USUARIO/editor-pdf/releases/latest">Baixar para Windows</a>
+  </span>
+</header>
+
+<div class="ferramentas">
+  <button type="button" data-abrir>Abrir PDF</button>
+  <button type="button" id="baixar" class="destaque" data-precisa-pdf disabled>
+    Baixar PDF editado <span class="contador" id="contador" hidden></span>
+  </button>
+  <span class="separador"></span>
+  <button type="button" id="desfazer" data-precisa-pdf disabled>Desfazer</button>
+  <button type="button" id="substituir" data-precisa-pdf disabled>Localizar e substituir</button>
+  <span class="separador"></span>
+  <span class="paginacao">
+    <button type="button" id="anterior" data-precisa-pdf disabled>&lt;</button>
+    <input type="number" id="numero" value="1" min="1" aria-label="Número da página">
+    <span id="total">/ 0</span>
+    <button type="button" id="proxima" data-precisa-pdf disabled>&gt;</button>
+  </span>
+  <span class="separador"></span>
+  <button type="button" id="menos" data-precisa-pdf disabled>Zoom −</button>
+  <button type="button" id="mais" data-precisa-pdf disabled>Zoom +</button>
+</div>
+
+<section id="inicio">
+  <div class="entrada">
+    <h1>Edite o texto de um PDF no navegador</h1>
+    <p>
+      Abra um arquivo, clique sobre qualquer texto da página, reescreva
+      e baixe o PDF já corrigido.
+    </p>
+    <div class="alvo">
+      <button type="button" class="destaque" data-abrir>Escolher um arquivo PDF</button>
+      <p>ou arraste o arquivo para qualquer lugar desta página</p>
+      <p style="margin-top:1.2rem">
+        <button type="button" id="exemplo">Usar um documento de exemplo</button>
+      </p>
+    </div>
+    <p class="privacidade">o arquivo é processado no seu navegador e não é enviado a servidor nenhum</p>
+  </div>
+</section>
+
+<section id="area" hidden>
+  <div class="mesa">
+    <div id="folha">
+      <canvas id="tela"></canvas>
+      <div id="camada"></div>
+    </div>
+  </div>
+
+  <aside class="painel">
+    <p class="rotulo">Textos encontrados na página</p>
+    <ul id="lista"></ul>
+    <div class="edicao">
+      <p id="semSelecao">Clique em um texto da página, ou na lista acima, para editá-lo.</p>
+      <div id="painel" hidden>
+        <dl id="detalhes"></dl>
+        <textarea id="campo" spellcheck="false" aria-label="Texto do trecho"></textarea>
+        <div class="acoes-edicao">
+          <button type="button" id="aplicar" class="destaque">Aplicar</button>
+          <button type="button" id="restaurar">Restaurar</button>
+          <button type="button" id="apagar">Apagar trecho</button>
+        </div>
+        <p class="dica">Enter aplica · Ctrl+Z desfaz · Ctrl+H substitui · Ctrl+S baixa</p>
+      </div>
+    </div>
+  </aside>
+</section>
+
+<p class="situacao" id="situacao">Abra um arquivo PDF para começar.</p>
+<div id="aviso" hidden></div>
+
+<dialog id="dialogo">
+  <h2>Localizar e substituir</h2>
+  <form method="dialog">
+    <label>Localizar<input type="text" id="procurar" autocomplete="off"></label>
+    <label>Substituir por<input type="text" id="trocar" autocomplete="off"></label>
+    <label class="marcar"><input type="checkbox" id="todasPaginas" checked> Em todas as páginas</label>
+    <div class="rodape-dialogo">
+      <button type="button" id="cancelarSubstituicao">Cancelar</button>
+      <button type="submit" id="confirmarSubstituicao" class="destaque">Substituir</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="exemplo.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

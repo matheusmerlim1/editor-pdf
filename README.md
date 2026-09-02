@@ -4,52 +4,77 @@
 
 # Editor de PDF
 
-**Aplicativo de mesa em Python que abre um PDF, identifica o texto existente, permite editá-lo e salvar novamente em PDF.**
+**Abre um arquivo PDF, identifica o texto que existe dentro dele, permite reescrever esse texto e salva tudo de volta em PDF.**
+Funciona direto no navegador, sem instalar nada, ou como programa de mesa para Windows.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PyMuPDF](https://img.shields.io/badge/PyMuPDF-1.24%2B-1e2952)](https://pymupdf.readthedocs.io/)
+[![pdf.js](https://img.shields.io/badge/pdf.js-3.11-c1272d)](https://mozilla.github.io/pdf.js/)
 [![Licença MIT](https://img.shields.io/badge/Licen%C3%A7a-MIT-green.svg)](LICENSE)
 [![Executável Windows](https://github.com/SEU-USUARIO/editor-pdf/actions/workflows/build.yml/badge.svg)](https://github.com/SEU-USUARIO/editor-pdf/actions/workflows/build.yml)
 
-[Baixar o executável](https://github.com/SEU-USUARIO/editor-pdf/releases/latest) ·
+[**Editar um PDF online**](https://SEU-USUARIO.github.io/editor-pdf/editor.html) ·
+[Baixar para Windows](https://github.com/SEU-USUARIO/editor-pdf/releases/latest) ·
 [Página do projeto](https://SEU-USUARIO.github.io/editor-pdf/) ·
 [Como funciona](#como-funciona)
 
-<img src="assets/tela.png" width="880" alt="Tela do Editor de PDF">
+<img src="assets/tela-online.png" width="880" alt="Editor de PDF aberto no navegador">
 
 </div>
 
 ---
 
+## Duas versões, o mesmo editor
+
+|  | No navegador | Programa de mesa |
+|---|---|---|
+| **Instalação** | nenhuma | baixar 53 MB |
+| **Onde roda** | qualquer sistema com navegador | Windows |
+| **Texto antigo** | coberto com a cor do fundo | removido do arquivo |
+| **Cor e fundo** | lidos dos pixels da página | lidos da estrutura do PDF |
+| **Privacidade** | tudo no seu navegador | tudo na sua máquina |
+
+A versão online resolve o caso comum — corrigir um nome, uma data, um valor — sem instalar nada.
+A versão de mesa é a indicada quando o texto antigo precisa **sair mesmo** do arquivo, e não só
+ficar escondido embaixo de um retângulo.
+
 ## O que ele faz
 
 | Recurso | Descrição |
 |---|---|
-| **Abrir PDF** | Carrega o arquivo e renderiza as páginas na tela (inclusive PDFs protegidos por senha). |
-| **Identificar o texto** | Extrai automaticamente todos os trechos de texto da página, com posição, fonte, tamanho e cor. |
+| **Abrir PDF** | Carrega o arquivo e renderiza as páginas na tela (a versão de mesa também abre PDFs com senha). |
+| **Identificar o texto** | Extrai todos os trechos de texto da página, com posição, fonte, corpo e cor. |
 | **Editar** | Clique no texto na própria página (ou escolha na lista lateral) e digite o novo conteúdo. |
 | **Localizar e substituir** | Troca uma palavra ou frase em uma página ou no documento inteiro de uma só vez. |
-| **Apagar trecho** | Remove um texto do documento sem deixar rastro no arquivo. |
-| **Desfazer** | Até 25 níveis de desfazer (`Ctrl+Z`). |
-| **Salvar em PDF** | Grava o resultado como um PDF normal, que abre em qualquer leitor. |
+| **Apagar trecho** | Tira um texto da página. |
+| **Desfazer** | `Ctrl+Z` volta atrás (25 níveis na versão de mesa). |
+| **Salvar em PDF** | O resultado é um PDF comum, que abre em qualquer leitor. |
 
-Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar · `Ctrl+Z` desfazer · `Ctrl+H` localizar e substituir · `Page Up` / `Page Down` mudar de página.
+Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+H` localizar e substituir.
 
 ## Como usar
 
-1. Clique em **Abrir PDF** e escolha o arquivo.
-2. Os trechos de texto reconhecidos aparecem contornados em azul na página e listados à direita.
+1. Abra o editor ([online](https://SEU-USUARIO.github.io/editor-pdf/editor.html) ou o programa) e escolha o arquivo PDF.
+2. Os trechos de texto reconhecidos aparecem contornados na página e listados à direita.
 3. Clique no trecho que deseja alterar — ele fica marcado em vermelho e o texto vai para a caixa de edição.
-4. Digite o novo texto e clique em **Aplicar alteração**. A página é atualizada na hora.
-5. Clique em **Salvar como...** para gravar o PDF editado.
+4. Digite o novo texto e clique em **Aplicar**. A página é atualizada na hora.
+5. Salve (ou baixe) o PDF editado.
 
 ## Instalação
 
-### Opção 1 — executável pronto (Windows, não precisa instalar Python)
+### Opção 1 — online, sem instalar nada
 
-Baixe o `EditorPDF.exe` mais recente em **[Releases](https://github.com/SEU-USUARIO/editor-pdf/releases/latest)** e execute com dois cliques. É um arquivo único e portátil; também é possível arrastar um PDF sobre ele para abrir direto.
+Acesse **[SEU-USUARIO.github.io/editor-pdf/editor.html](https://SEU-USUARIO.github.io/editor-pdf/editor.html)**.
+O PDF é lido e gravado pelo próprio navegador: nenhum arquivo é enviado para servidor algum.
 
-### Opção 2 — a partir do código-fonte
+### Opção 2 — executável para Windows
+
+Baixe o `EditorPDF.exe` em **[Releases](https://github.com/SEU-USUARIO/editor-pdf/releases/latest)** e execute
+com dois cliques. É um arquivo único e portátil; também é possível arrastar um PDF sobre ele para abrir direto.
+
+<img src="assets/tela.png" width="760" alt="Janela do programa de mesa no Windows">
+
+### Opção 3 — a partir do código-fonte
 
 ```bash
 git clone https://github.com/SEU-USUARIO/editor-pdf.git
@@ -60,66 +85,71 @@ python editor_pdf.py
 
 Requer **Python 3.9 ou superior**. No Linux, o Tkinter pode precisar ser instalado à parte (`sudo apt install python3-tk`).
 
-### Gerar o executável você mesmo
-
-```bash
-build_exe.bat            # Windows
-```
-
-ou manualmente:
-
-```bash
-pyinstaller --noconfirm --onefile --windowed --name EditorPDF ^
-    --icon assets/icone.ico --add-data "assets/icone.ico;assets" editor_pdf.py
-```
-
-O resultado fica em `dist/EditorPDF.exe` (aproximadamente 53 MB, pois inclui o Python e todas as bibliotecas).
+Para gerar o executável: `build_exe.bat` (ou o comando dentro dele). O resultado fica em `dist/EditorPDF.exe`.
 
 ## Como funciona
 
-O PDF não guarda "parágrafos editáveis" como um editor de texto: ele guarda instruções de desenho que posicionam cada grupo de caracteres em uma coordenada da página. Por isso a edição acontece em três passos:
+O PDF não guarda "parágrafos editáveis": ele guarda instruções de desenho que posicionam cada grupo de
+caracteres em uma coordenada da página. Por isso a edição acontece em três passos — os mesmos nas duas versões,
+mudando apenas a biblioteca que faz o trabalho:
 
 ```
-1. LEITURA        page.get_text("dict")
-                  → cada trecho (span) traz texto, caixa (bbox), origem,
-                    fonte, tamanho, cor e estilo (negrito/itálico/serifa)
+                       programa de mesa (PyMuPDF)        navegador (pdf.js + pdf-lib)
+                       ──────────────────────────        ────────────────────────────
+1. LEITURA             page.get_text("dict")             page.getTextContent()
+   texto, caixa, linha-base, fonte, corpo e cor de cada trecho
 
-2. SUBSTITUIÇÃO   add_redact_annot(bbox) + apply_redactions()
-                  → apaga apenas os caracteres daquele trecho, preservando
-                    imagens e desenhos vetoriais da página
-                  insert_text(origem, texto_novo, fonte, tamanho, cor)
-                  → escreve o texto novo exatamente sobre a mesma linha-base
+2. SUBSTITUIÇÃO        add_redact_annot(caixa)           drawRectangle(caixa, cor do fundo)
+   apaga / cobre       apply_redactions()                 ↑ cor amostrada dos pixels da página
+   escreve por cima    insert_text(origem, ...)          drawText(origem, ...)
 
-3. GRAVAÇÃO       doc.save(destino, garbage=4, deflate=True)
+3. GRAVAÇÃO            doc.save(destino)                 doc.save() → download
 ```
 
-A fonte original nem sempre está embutida no arquivo, então o texto novo é reescrito com a fonte **base-14** equivalente (Helvetica, Times ou Courier, nas variações normal/negrito/itálico), escolhida pelo nome e pelos *flags* da fonte original. Se o texto novo ficar largo demais para a página, o corpo da fonte é reduzido apenas o necessário para caber.
+A fonte original nem sempre está embutida no arquivo, então o texto novo é reescrito com a fonte
+**base-14** equivalente (Helvetica, Times ou Courier, nas variações normal/negrito/itálico), escolhida
+pelo nome e pelos *flags* da fonte original. Se o texto novo ficar largo demais para a página, o corpo
+da fonte é reduzido apenas o necessário para caber.
 
-Arquivo principal: [`editor_pdf.py`](editor_pdf.py) — a substituição fica em `EditorPDF.substituir_trechos()`.
+Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
+[`docs/editor.js`](docs/editor.js) (`gerarBytesEditados()`).
 
 ## Limitações conhecidas
 
-- **PDFs digitalizados** (somente imagem) não têm texto para identificar; seria necessário OCR. O programa avisa quando isso acontece.
+- **PDFs digitalizados** (somente imagem) não têm texto para identificar; seria necessário OCR. Os dois editores avisam quando isso acontece.
+- Na **versão online** o texto antigo é coberto, e não apagado: ele continua dentro do arquivo. Para retirá-lo de verdade, use a versão de mesa.
 - O texto novo é reescrito com fontes base-14, então uma fonte muito característica do documento original não é reproduzida com exatidão.
 - A edição é feita por trecho (span), não por parágrafo: textos muito maiores que o original não reorganizam a quebra de linha automaticamente.
-- Caracteres fora do conjunto latino-1 (por exemplo alfabetos grego ou cirílico) não são suportados pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente para equivalentes.
+- Caracteres fora do conjunto latino-1 (grego, cirílico) não são suportados pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente.
 
 ## Estrutura do projeto
 
 ```
 editor-pdf/
-├── editor_pdf.py              programa principal (interface + edição do PDF)
-├── requirements.txt           dependências
+├── editor_pdf.py              programa de mesa (Tkinter + PyMuPDF)
+├── requirements.txt           dependências da versão de mesa
 ├── build_exe.bat              gera o dist/EditorPDF.exe
-├── assets/                    ícone e imagens
-├── docs/                      página do projeto (GitHub Pages)
+├── docs/                      página do projeto e editor online (GitHub Pages)
+│   ├── index.html             página de apresentação
+│   ├── editor.html            interface do editor online
+│   ├── editor.js              leitura, edição e gravação do PDF no navegador
+│   └── exemplo.js             documento de exemplo embutido
+├── testes/teste_edicao.py     testes automatizados do núcleo de edição
 ├── exemplos/gerar_exemplo.py  cria um PDF de teste
+├── assets/                    ícone e capturas de tela
 └── .github/workflows/         compilação automática do executável
 ```
 
+## Publicando a página no GitHub Pages
+
+Depois de enviar o repositório, em **Settings → Pages** escolha *Deploy from a branch*,
+branch `main` e pasta `/docs`. A página fica em `https://SEU-USUARIO.github.io/editor-pdf/`
+e o editor em `.../editor.html`.
+
 ## Tecnologias
 
-[PyMuPDF](https://pymupdf.readthedocs.io/) (leitura e edição do PDF) · [Tkinter](https://docs.python.org/3/library/tkinter.html) (interface gráfica) · [Pillow](https://python-pillow.org/) (exibição das páginas) · [PyInstaller](https://pyinstaller.org/) (geração do executável).
+**Versão de mesa:** [PyMuPDF](https://pymupdf.readthedocs.io/) · [Tkinter](https://docs.python.org/3/library/tkinter.html) · [Pillow](https://python-pillow.org/) · [PyInstaller](https://pyinstaller.org/)
+**Versão online:** [pdf.js](https://mozilla.github.io/pdf.js/) (ler e desenhar) · [pdf-lib](https://pdf-lib.js.org/) (gravar)
 
 ## Licença
 

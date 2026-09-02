@@ -205,6 +205,23 @@ pre .fn { color: var(--azul); }
 .fonte .amostra.c { font-family: var(--mono); }
 .fonte .codigos { margin-top: .6rem; font-family: var(--mono); font-size: .74rem; color: var(--tinta-fraca); }
 
+/* -------- comparacao das versoes -------- */
+.versoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1.5rem; }
+.versao { border: 1px solid var(--linha); border-radius: 12px; padding: 1.5rem; background: var(--superficie); }
+.versao.destacada { border-color: var(--azul); box-shadow: var(--sombra); }
+.versao .selo {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--azul); background: var(--azul-fraco); padding: .2rem .5rem; border-radius: 4px;
+}
+.versao h3 { margin: .9rem 0 .4rem; }
+.versao p { font-size: .95rem; color: var(--tinta-suave); }
+.versao .acoes { margin-top: 1.2rem; }
+.comparacao { width: 100%; border-collapse: collapse; margin-top: 2rem; font-size: .92rem; }
+.comparacao th, .comparacao td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--linha); }
+.comparacao thead th { font-family: var(--display); font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-fraca); }
+.comparacao tbody th { font-weight: 400; color: var(--tinta-suave); width: 30%; }
+.rolagem { overflow-x: auto; }
+
 /* -------- instalacao -------- */
 .instalacao { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1.5rem; }
 .caixa { border: 1px solid var(--linha); border-radius: 12px; padding: 1.5rem; background: var(--superficie); }
@@ -235,6 +252,7 @@ footer .pilha { margin-left: auto; font-family: var(--mono); font-size: .76rem; 
   <div class="envolucro">
     <span class="marca"><img src="icone.png" alt=""> Editor de PDF</span>
     <nav>
+      <a href="editor.html">Editor online</a>
       <a href="#recursos">Recursos</a>
       <a href="#funciona">Como funciona</a>
       <a href="#instalacao" class="opcional">Instalação</a>
@@ -249,32 +267,81 @@ footer .pilha { margin-left: auto; font-family: var(--mono); font-size: .76rem; 
     <p class="sobrescrito">Trabalho de Sistema de Informação · CEFET</p>
     <h1>Editor de PDF</h1>
     <p class="chamada">
-      Um aplicativo de mesa em Python que <strong>abre um arquivo PDF, identifica o texto
-      que existe dentro dele, permite reescrever esse texto</strong> e salvar tudo de volta
-      em PDF — preservando posição, tamanho, cor e estilo de cada trecho.
+      <strong>Abre um arquivo PDF, identifica o texto que existe dentro dele, permite
+      reescrever esse texto</strong> e salva tudo de volta em PDF — preservando posição,
+      tamanho, cor e estilo de cada trecho. Funciona <strong>direto no navegador</strong>,
+      sem instalar nada, ou como programa de mesa para Windows.
     </p>
     <div class="acoes">
-      <a class="botao principal" href="https://github.com/SEU-USUARIO/editor-pdf/releases/latest">Baixar EditorPDF.exe</a>
+      <a class="botao principal" href="editor.html">Editar um PDF online</a>
+      <a class="botao secundario" href="https://github.com/SEU-USUARIO/editor-pdf/releases/latest">Baixar para Windows</a>
       <a class="botao secundario" href="https://github.com/SEU-USUARIO/editor-pdf">Ver o código-fonte</a>
     </div>
     <p class="ficha">
-      <span>Windows · arquivo único</span>
-      <span>53 MB</span>
-      <span>não precisa instalar Python</span>
+      <span>online: nada para instalar</span>
+      <span>o arquivo não sai do seu computador</span>
+      <span>versão de mesa: Windows · 53 MB</span>
       <span>licença MIT</span>
     </p>
   </div>
 
   <figure>
     <div class="captura">
-      <img src="tela.png" width="1266" height="839"
-           alt="Janela do Editor de PDF: à esquerda a página do PDF com os trechos de texto contornados, à direita a lista de textos encontrados e a caixa de edição.">
+      <img src="tela-online.png" width="1920" height="1230"
+           alt="Editor de PDF aberto no navegador: à esquerda a página do documento com os trechos de texto contornados, à direita a lista de textos encontrados e a caixa de edição.">
     </div>
     <figcaption>
-      Os trechos de texto reconhecidos aparecem contornados na página; o trecho escolhido
-      fica marcado em vermelho e o seu conteúdo vai para a caixa de edição, à direita.
+      O editor online. Os trechos de texto reconhecidos aparecem contornados na página; o
+      trecho escolhido fica marcado em vermelho, o já alterado em verde, e o conteúdo vai
+      para a caixa de edição, à direita.
     </figcaption>
   </figure>
+
+  <section id="versoes">
+    <div class="cabecalho-secao"><h2>Duas versões, o mesmo editor</h2></div>
+    <p class="intro">
+      O mesmo processo de edição em dois formatos. A escolha depende de uma coisa só:
+      se o texto antigo precisa apenas sumir de vista ou ser realmente retirado do arquivo.
+    </p>
+    <div class="versoes">
+      <div class="versao destacada">
+        <span class="selo">sem instalar</span>
+        <h3>No navegador</h3>
+        <p>
+          Abre, edita e baixa o PDF corrigido sem instalar nada. O arquivo é lido e gravado
+          pelo próprio navegador — nada é enviado para servidor nenhum.
+        </p>
+        <div class="acoes">
+          <a class="botao principal" href="editor.html">Abrir o editor online</a>
+        </div>
+      </div>
+      <div class="versao">
+        <span class="selo">windows</span>
+        <h3>Programa de mesa</h3>
+        <p>
+          Um único <code>EditorPDF.exe</code>, portátil e sem instalação. Apaga o texto
+          antigo de verdade, usando a redação do próprio PDF, em vez de cobri-lo.
+        </p>
+        <div class="acoes">
+          <a class="botao secundario" href="https://github.com/SEU-USUARIO/editor-pdf/releases/latest">Baixar EditorPDF.exe</a>
+        </div>
+      </div>
+    </div>
+    <div class="rolagem">
+      <table class="comparacao">
+        <thead>
+          <tr><th scope="col"></th><th scope="col">No navegador</th><th scope="col">Programa de mesa</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Instalação</th><td>nenhuma</td><td>baixar 53 MB</td></tr>
+          <tr><th scope="row">Onde roda</th><td>qualquer sistema com navegador</td><td>Windows</td></tr>
+          <tr><th scope="row">Texto antigo</th><td>coberto com a cor do fundo</td><td>removido do arquivo</td></tr>
+          <tr><th scope="row">Cor e fundo</th><td>lidos dos pixels da página</td><td>lidos da estrutura do PDF</td></tr>
+          <tr><th scope="row">Privacidade</th><td>tudo no seu navegador</td><td>tudo na sua máquina</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <section id="recursos">
     <div class="cabecalho-secao"><h2>O que ele faz</h2></div>
@@ -293,7 +360,7 @@ footer .pilha { margin-left: auto; font-family: var(--mono); font-size: .76rem; 
       </div>
       <div class="recurso">
         <h3>Apaga trechos</h3>
-        <p>Remove o texto do arquivo de verdade, e não com uma tarja por cima.</p>
+        <p>Tira um texto da página: retirado do arquivo na versão de mesa, coberto no navegador.</p>
       </div>
       <div class="recurso">
         <h3>Desfaz até 25 vezes</h3>
@@ -312,6 +379,8 @@ footer .pilha { margin-left: auto; font-family: var(--mono); font-size: .76rem; 
       Um PDF não guarda parágrafos editáveis: ele guarda instruções de desenho que colocam
       grupos de caracteres em coordenadas da página. Editar, então, é um processo de três
       passos — e nessa ordem, porque o texto novo só pode ser escrito depois que o antigo sai.
+      As duas versões seguem o mesmo caminho; muda apenas a biblioteca que faz o trabalho
+      (PyMuPDF no programa de mesa, pdf.js e pdf-lib no navegador).
     </p>
 
     <ol class="etapas" style="list-style:none; padding:0; margin:0;">
@@ -335,6 +404,8 @@ dados = pagina.<span class="fn">get_text</span>("dict")</pre>
             A área do trecho antigo é marcada e apagada por uma <em>redação</em> — que remove
             só os caracteres, deixando imagens e desenhos vetoriais intactos. Em seguida o texto
             novo é escrito exatamente sobre a mesma linha-base, com o corpo e a cor originais.
+            No navegador não existe redação: lá o trecho é coberto por um retângulo pintado com
+            a cor de fundo lida dos pixels da própria página.
           </p>
 <pre>pagina.<span class="fn">add_redact_annot</span>(caixa)
 pagina.<span class="fn">apply_redactions</span>(images=NONE, graphics=NONE)
@@ -402,6 +473,16 @@ pagina.<span class="fn">insert_text</span>(origem, texto_novo, fontname, fontsiz
     <div class="cabecalho-secao"><h2>Instalação</h2></div>
     <div class="instalacao">
       <div class="caixa">
+        <h3>Online, sem instalar</h3>
+        <p>
+          Abra o editor no navegador e escolha o arquivo. Funciona em qualquer sistema
+          operacional e o PDF nunca sai do seu computador.
+        </p>
+        <p style="margin-top:1rem">
+          <a class="botao principal" href="editor.html">Abrir o editor online</a>
+        </p>
+      </div>
+      <div class="caixa">
         <h3>Executável pronto</h3>
         <p>
           Baixe o <code>EditorPDF.exe</code> na página de <em>releases</em> e execute com dois
@@ -432,6 +513,7 @@ python editor_pdf.py</pre>
       <li><strong>PDFs digitalizados</strong> são só imagem: não há texto para identificar. Seria preciso reconhecimento óptico de caracteres (OCR) — o programa avisa quando isso acontece.</li>
       <li>Como o texto é reescrito com as fontes base-14, <strong>uma fonte muito característica do documento não é reproduzida com exatidão</strong>.</li>
       <li>A edição é feita por trecho, e não por parágrafo: um texto bem maior que o original <strong>não reorganiza a quebra de linha</strong> sozinho — apenas o corpo da fonte é reduzido para caber.</li>
+      <li>Na <strong>versão online</strong> o texto antigo é coberto com a cor do fundo, e não apagado: ele continua dentro do arquivo e pode ser recuperado por quem souber procurar. Para retirá-lo de verdade, use a versão de mesa, que aplica a redação do próprio PDF.</li>
       <li>Alfabetos fora do conjunto latino-1 (grego, cirílico) não são cobertos pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente.</li>
     </ul>
   </section>
@@ -440,7 +522,7 @@ python editor_pdf.py</pre>
 
 <footer class="envolucro">
   <span>Editor de PDF · licença MIT</span>
-  <span class="pilha">Python · PyMuPDF · Tkinter · Pillow · PyInstaller</span>
+  <span class="pilha">Python · PyMuPDF · Tkinter &nbsp;|&nbsp; pdf.js · pdf-lib</span>
 </footer>
 
 </body>
