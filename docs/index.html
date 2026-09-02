@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de PDF</title>
+<meta name="description" content="Aplicativo em Python que abre um PDF, identifica o texto existente, permite editá-lo e salvar novamente em PDF.">
+<link rel="icon" href="icone.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* --------------------------------------------------------------
+   Paleta: tinta sobre papel. O vermelho e o mesmo contorno que o
+   programa desenha no trecho selecionado; o azul, o das caixas de
+   texto detectadas. As tres familias tipograficas ecoam as fontes
+   base-14 que o editor usa para reescrever o PDF.
+   -------------------------------------------------------------- */
+:root {
+  --papel: #f6f7fb;
+  --superficie: #ffffff;
+  --superficie-2: #eef1f8;
+  --tinta: #131a33;
+  --tinta-suave: #4a5470;
+  --tinta-fraca: #78829c;
+  --linha: #d9dee9;
+  --linha-forte: #b9c2d6;
+  --azul: #3f57c9;
+  --azul-fraco: #dfe4fa;
+  --vermelho: #c1272d;
+  --vermelho-fraco: #fae0e0;
+  --sombra: 0 1px 2px rgba(19, 26, 51, .06), 0 8px 24px -12px rgba(19, 26, 51, .18);
+  --display: "Archivo", "Segoe UI", Helvetica, Arial, sans-serif;
+  --corpo: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+  --medida: 66ch;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papel: #0f131d;
+    --superficie: #161c2a;
+    --superficie-2: #1d2434;
+    --tinta: #e6ebf7;
+    --tinta-suave: #aab4cc;
+    --tinta-fraca: #8390ab;
+    --linha: #2a3245;
+    --linha-forte: #3a4459;
+    --azul: #8fa3ff;
+    --azul-fraco: #232b45;
+    --vermelho: #ff8a8a;
+    --vermelho-fraco: #3a2027;
+    --sombra: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .8);
+  }
+}
+:root[data-theme="dark"] {
+  --papel: #0f131d;
+  --superficie: #161c2a;
+  --superficie-2: #1d2434;
+  --tinta: #e6ebf7;
+  --tinta-suave: #aab4cc;
+  --tinta-fraca: #8390ab;
+  --linha: #2a3245;
+  --linha-forte: #3a4459;
+  --azul: #8fa3ff;
+  --azul-fraco: #232b45;
+  --vermelho: #ff8a8a;
+  --vermelho-fraco: #3a2027;
+  --sombra: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .8);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--corpo);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--azul); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--azul); outline-offset: 3px; border-radius: 3px;
+}
+.envolucro { width: min(100% - 2.5rem, 68rem); margin-inline: auto; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.15; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2rem); letter-spacing: -.01em; }
+h3 { font-size: 1.06rem; font-weight: 600; }
+p { margin: 0; }
+code, kbd { font-family: var(--mono); font-size: .87em; }
+
+/* -------- cabecalho -------- */
+.topo {
+  border-bottom: 1px solid var(--linha);
+  background: color-mix(in srgb, var(--papel) 85%, transparent);
+  position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px);
+}
+.topo .envolucro { display: flex; align-items: center; gap: 1rem; padding: .7rem 0; }
+.marca { display: flex; align-items: center; gap: .6rem; font-family: var(--display); font-weight: 600; letter-spacing: -.01em; }
+.marca img { width: 30px; height: 30px; }
+.topo nav { margin-left: auto; display: flex; gap: 1.4rem; font-family: var(--display); font-size: .88rem; }
+.topo nav a { color: var(--tinta-suave); text-decoration: none; }
+.topo nav a:hover { color: var(--azul); }
+@media (max-width: 620px) { .topo nav a.opcional { display: none; } }
+
+/* -------- hero -------- */
+.hero { padding: 4.5rem 0 2.5rem; }
+.sobrescrito {
+  font-family: var(--mono); font-size: .74rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--tinta-fraca); margin-bottom: 1.1rem;
+}
+.hero h1 { font-size: clamp(2.6rem, 1.6rem + 4vw, 4.2rem); letter-spacing: -.03em; }
+.hero .chamada {
+  max-width: var(--medida); margin-top: 1.1rem; font-size: 1.2rem; color: var(--tinta-suave);
+}
+.hero .chamada strong { color: var(--tinta); font-weight: 600; }
+.acoes { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 2rem; }
+.botao {
+  font-family: var(--display); font-size: .95rem; font-weight: 600; text-decoration: none;
+  padding: .7rem 1.25rem; border-radius: 7px; border: 1px solid transparent;
+  display: inline-flex; align-items: center; gap: .5rem; transition: transform .15s ease, background .15s ease;
+}
+.botao.principal { background: var(--tinta); color: var(--papel); }
+.botao.principal:hover { transform: translateY(-1px); }
+.botao.secundario { border-color: var(--linha-forte); color: var(--tinta); background: var(--superficie); }
+.botao.secundario:hover { border-color: var(--azul); color: var(--azul); }
+.ficha {
+  margin-top: 1.1rem; font-family: var(--mono); font-size: .78rem; color: var(--tinta-fraca);
+  display: flex; flex-wrap: wrap; gap: .4rem 1rem;
+}
+
+/* -------- captura de tela -------- */
+figure { margin: 0; }
+.captura {
+  margin-top: 3rem; border: 1px solid var(--linha); border-radius: 12px; overflow: hidden;
+  background: var(--superficie-2); box-shadow: var(--sombra);
+}
+figcaption {
+  margin-top: .8rem; font-size: .88rem; color: var(--tinta-fraca); max-width: var(--medida);
+}
+
+/* -------- secoes -------- */
+section { padding: 4rem 0 0; }
+.cabecalho-secao { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 2rem; }
+.cabecalho-secao::after { content: ""; flex: 1; height: 1px; background: var(--linha); }
+.intro { max-width: var(--medida); color: var(--tinta-suave); margin-bottom: 2rem; }
+
+/* -------- recursos -------- */
+.recursos { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.6rem 2.2rem; }
+.recurso { padding-top: .9rem; border-top: 2px solid var(--linha-forte); }
+.recurso h3 { margin-bottom: .35rem; }
+.recurso p { font-size: .95rem; color: var(--tinta-suave); }
+
+/* -------- etapas -------- */
+.etapas { display: grid; gap: 1px; background: var(--linha); border: 1px solid var(--linha); border-radius: 12px; overflow: hidden; }
+.etapa { background: var(--superficie); padding: 1.6rem 1.7rem; display: grid; grid-template-columns: 2.6rem 1fr; gap: 0 1.2rem; align-items: start; }
+.etapa .numero {
+  font-family: var(--mono); font-size: .8rem; font-weight: 600; color: var(--azul);
+  border: 1px solid var(--azul-fraco); background: var(--azul-fraco);
+  width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center;
+}
+.etapa .conteudo { min-width: 0; }
+.etapa p { color: var(--tinta-suave); font-size: .97rem; margin-top: .4rem; max-width: 58ch; }
+pre {
+  margin: .8rem 0 0; padding: .85rem 1rem; background: var(--superficie-2);
+  border: 1px solid var(--linha); border-radius: 8px; overflow-x: auto;
+  font-family: var(--mono); font-size: .82rem; line-height: 1.6; color: var(--tinta);
+}
+pre .cm { color: var(--tinta-fraca); }
+pre .fn { color: var(--azul); }
+
+/* -------- inspetor de trecho -------- */
+.inspetor {
+  margin-top: 2rem; border: 1px solid var(--linha); border-radius: 12px;
+  background: var(--superficie); padding: 1.8rem; display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 2rem; align-items: center;
+}
+@media (max-width: 760px) { .inspetor { grid-template-columns: 1fr; } }
+.folha {
+  background: #ffffff; border: 1px solid var(--linha-forte); border-radius: 4px;
+  padding: 1.6rem 1.4rem; box-shadow: var(--sombra); color: #111;
+}
+.folha .titulo-doc { font-family: var(--display); font-weight: 700; font-size: 1.05rem; color: #1a2a6b; }
+.folha .linha-doc { font-family: Helvetica, Arial, sans-serif; font-size: .9rem; margin-top: .8rem; color: #222; }
+.folha .marcada {
+  display: inline-block; outline: 2px solid var(--vermelho); outline-offset: 3px; border-radius: 2px;
+}
+.folha .detectada { display: inline-block; outline: 1px solid #8fa0e8; outline-offset: 3px; }
+.dados { font-family: var(--mono); font-size: .8rem; }
+.dados dl { display: grid; grid-template-columns: auto 1fr; gap: .45rem 1rem; margin: 0; }
+.dados dt { color: var(--tinta-fraca); }
+.dados dd { margin: 0; color: var(--tinta); font-variant-numeric: tabular-nums; }
+.dados .rotulo {
+  font-family: var(--display); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--vermelho); margin-bottom: .9rem;
+}
+
+/* -------- fontes base-14 -------- */
+.fontes { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.fonte { border: 1px solid var(--linha); border-radius: 10px; padding: 1rem 1.1rem; background: var(--superficie); }
+.fonte .amostra { font-size: 1.35rem; color: var(--tinta); }
+.fonte .amostra.a { font-family: Helvetica, Arial, sans-serif; }
+.fonte .amostra.b { font-family: "Times New Roman", Times, serif; }
+.fonte .amostra.c { font-family: var(--mono); }
+.fonte .codigos { margin-top: .6rem; font-family: var(--mono); font-size: .74rem; color: var(--tinta-fraca); }
+
+/* -------- instalacao -------- */
+.instalacao { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1.5rem; }
+.caixa { border: 1px solid var(--linha); border-radius: 12px; padding: 1.5rem; background: var(--superficie); }
+.caixa h3 { margin-bottom: .5rem; }
+.caixa p { font-size: .95rem; color: var(--tinta-suave); }
+
+/* -------- limitacoes -------- */
+.limitacoes { max-width: var(--medida); padding-left: 1.1rem; color: var(--tinta-suave); }
+.limitacoes li { margin-bottom: .7rem; }
+.limitacoes li::marker { color: var(--vermelho); }
+
+/* -------- rodape -------- */
+footer {
+  margin-top: 5rem; border-top: 1px solid var(--linha); padding: 2rem 0 3rem;
+  font-size: .87rem; color: var(--tinta-fraca);
+  display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: center;
+}
+footer .pilha { margin-left: auto; font-family: var(--mono); font-size: .76rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <div class="envolucro">
+    <span class="marca"><img src="icone.png" alt=""> Editor de PDF</span>
+    <nav>
+      <a href="#recursos">Recursos</a>
+      <a href="#funciona">Como funciona</a>
+      <a href="#instalacao" class="opcional">Instalação</a>
+      <a href="https://github.com/SEU-USUARIO/editor-pdf">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="envolucro">
+
+  <div class="hero">
+    <p class="sobrescrito">Trabalho de Sistema de Informação · CEFET</p>
+    <h1>Editor de PDF</h1>
+    <p class="chamada">
+      Um aplicativo de mesa em Python que <strong>abre um arquivo PDF, identifica o texto
+      que existe dentro dele, permite reescrever esse texto</strong> e salvar tudo de volta
+      em PDF — preservando posição, tamanho, cor e estilo de cada trecho.
+    </p>
+    <div class="acoes">
+      <a class="botao principal" href="https://github.com/SEU-USUARIO/editor-pdf/releases/latest">Baixar EditorPDF.exe</a>
+      <a class="botao secundario" href="https://github.com/SEU-USUARIO/editor-pdf">Ver o código-fonte</a>
+    </div>
+    <p class="ficha">
+      <span>Windows · arquivo único</span>
+      <span>53 MB</span>
+      <span>não precisa instalar Python</span>
+      <span>licença MIT</span>
+    </p>
+  </div>
+
+  <figure>
+    <div class="captura">
+      <img src="tela.png" width="1266" height="839"
+           alt="Janela do Editor de PDF: à esquerda a página do PDF com os trechos de texto contornados, à direita a lista de textos encontrados e a caixa de edição.">
+    </div>
+    <figcaption>
+      Os trechos de texto reconhecidos aparecem contornados na página; o trecho escolhido
+      fica marcado em vermelho e o seu conteúdo vai para a caixa de edição, à direita.
+    </figcaption>
+  </figure>
+
+  <section id="recursos">
+    <div class="cabecalho-secao"><h2>O que ele faz</h2></div>
+    <div class="recursos">
+      <div class="recurso">
+        <h3>Identifica o texto</h3>
+        <p>Percorre cada página e extrai todos os trechos de texto com a sua caixa, fonte, corpo e cor.</p>
+      </div>
+      <div class="recurso">
+        <h3>Edita na própria página</h3>
+        <p>Clique sobre a palavra na página renderizada — ou escolha na lista lateral — e digite o texto novo.</p>
+      </div>
+      <div class="recurso">
+        <h3>Localiza e substitui</h3>
+        <p>Troca uma palavra ou frase em uma página ou no documento inteiro de uma só vez.</p>
+      </div>
+      <div class="recurso">
+        <h3>Apaga trechos</h3>
+        <p>Remove o texto do arquivo de verdade, e não com uma tarja por cima.</p>
+      </div>
+      <div class="recurso">
+        <h3>Desfaz até 25 vezes</h3>
+        <p>Cada alteração guarda o estado anterior do documento inteiro; <kbd>Ctrl+Z</kbd> volta atrás.</p>
+      </div>
+      <div class="recurso">
+        <h3>Salva em PDF</h3>
+        <p>O resultado é um PDF comum, que abre em qualquer leitor — inclusive por cima do arquivo original.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="funciona">
+    <div class="cabecalho-secao"><h2>Como funciona</h2></div>
+    <p class="intro">
+      Um PDF não guarda parágrafos editáveis: ele guarda instruções de desenho que colocam
+      grupos de caracteres em coordenadas da página. Editar, então, é um processo de três
+      passos — e nessa ordem, porque o texto novo só pode ser escrito depois que o antigo sai.
+    </p>
+
+    <ol class="etapas" style="list-style:none; padding:0; margin:0;">
+      <li class="etapa">
+        <span class="numero">1</span>
+        <div class="conteudo">
+          <h3>Leitura</h3>
+          <p>
+            O documento é lido trecho a trecho (<em>span</em>). Cada trecho traz o texto, a caixa
+            que ele ocupa, a linha-base onde começa, a fonte, o corpo em pontos e a cor.
+          </p>
+<pre><span class="cm"># para cada span da página</span>
+dados = pagina.<span class="fn">get_text</span>("dict")</pre>
+        </div>
+      </li>
+      <li class="etapa">
+        <span class="numero">2</span>
+        <div class="conteudo">
+          <h3>Substituição</h3>
+          <p>
+            A área do trecho antigo é marcada e apagada por uma <em>redação</em> — que remove
+            só os caracteres, deixando imagens e desenhos vetoriais intactos. Em seguida o texto
+            novo é escrito exatamente sobre a mesma linha-base, com o corpo e a cor originais.
+          </p>
+<pre>pagina.<span class="fn">add_redact_annot</span>(caixa)
+pagina.<span class="fn">apply_redactions</span>(images=NONE, graphics=NONE)
+pagina.<span class="fn">insert_text</span>(origem, texto_novo, fontname, fontsize, color)</pre>
+        </div>
+      </li>
+      <li class="etapa">
+        <span class="numero">3</span>
+        <div class="conteudo">
+          <h3>Gravação</h3>
+          <p>
+            O documento é gravado novamente, com limpeza dos objetos que ficaram sem uso e
+            compressão dos fluxos.
+          </p>
+<pre>doc.<span class="fn">save</span>(destino, garbage=4, deflate=True)</pre>
+        </div>
+      </li>
+    </ol>
+
+    <div class="inspetor">
+      <div class="folha">
+        <div class="titulo-doc detectada">CEFET — Sistema de Informação</div>
+        <div class="linha-doc"><span class="marcada">Responsável: Matheus Merlim</span></div>
+        <div class="linha-doc detectada" style="display:inline-block">Data de entrega: 02/09/2026</div>
+      </div>
+      <div class="dados">
+        <p class="rotulo">Trecho selecionado</p>
+        <dl>
+          <dt>texto</dt><dd>"Responsável: Matheus Merlim"</dd>
+          <dt>bbox</dt><dd>56.0, 128.3 → 261.4, 142.7</dd>
+          <dt>origem</dt><dd>56.0, 140.0 (linha-base)</dd>
+          <dt>fonte</dt><dd>Helvetica</dd>
+          <dt>corpo</dt><dd>12.0 pt</dd>
+          <dt>cor</dt><dd>#000000</dd>
+          <dt>regravação</dt><dd>helv</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section id="fontes">
+    <div class="cabecalho-secao"><h2>Sobre as fontes</h2></div>
+    <p class="intro">
+      A fonte original nem sempre vem embutida no arquivo. Por isso o texto novo é reescrito
+      com a fonte <strong>base-14</strong> equivalente — as três famílias que todo leitor de PDF
+      é obrigado a ter — escolhida pelo nome e pelos atributos da fonte original.
+    </p>
+    <div class="fontes">
+      <div class="fonte">
+        <div class="amostra a">Helvetica</div>
+        <div class="codigos">helv · hebo · heit · hebi<br>fontes sem serifa</div>
+      </div>
+      <div class="fonte">
+        <div class="amostra b">Times</div>
+        <div class="codigos">tiro · tibo · tiit · tibi<br>fontes com serifa</div>
+      </div>
+      <div class="fonte">
+        <div class="amostra c">Courier</div>
+        <div class="codigos">cour · cobo · coit · cobi<br>fontes monoespaçadas</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="instalacao">
+    <div class="cabecalho-secao"><h2>Instalação</h2></div>
+    <div class="instalacao">
+      <div class="caixa">
+        <h3>Executável pronto</h3>
+        <p>
+          Baixe o <code>EditorPDF.exe</code> na página de <em>releases</em> e execute com dois
+          cliques. É portátil: não instala nada e não exige Python na máquina. Também dá para
+          arrastar um PDF sobre o ícone para abri-lo direto.
+        </p>
+        <p style="margin-top:1rem">
+          <a class="botao principal" href="https://github.com/SEU-USUARIO/editor-pdf/releases/latest">Baixar a versão mais recente</a>
+        </p>
+      </div>
+      <div class="caixa">
+        <h3>A partir do código-fonte</h3>
+        <p>Requer Python 3.9 ou superior.</p>
+<pre>git clone https://github.com/SEU-USUARIO/editor-pdf.git
+cd editor-pdf
+pip install -r requirements.txt
+python editor_pdf.py</pre>
+        <p style="margin-top:1rem">
+          Para gerar o executável você mesmo, rode <code>build_exe.bat</code>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="limitacoes">
+    <div class="cabecalho-secao"><h2>Limitações</h2></div>
+    <ul class="limitacoes">
+      <li><strong>PDFs digitalizados</strong> são só imagem: não há texto para identificar. Seria preciso reconhecimento óptico de caracteres (OCR) — o programa avisa quando isso acontece.</li>
+      <li>Como o texto é reescrito com as fontes base-14, <strong>uma fonte muito característica do documento não é reproduzida com exatidão</strong>.</li>
+      <li>A edição é feita por trecho, e não por parágrafo: um texto bem maior que o original <strong>não reorganiza a quebra de linha</strong> sozinho — apenas o corpo da fonte é reduzido para caber.</li>
+      <li>Alfabetos fora do conjunto latino-1 (grego, cirílico) não são cobertos pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente.</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="envolucro">
+  <span>Editor de PDF · licença MIT</span>
+  <span class="pilha">Python · PyMuPDF · Tkinter · Pillow · PyInstaller</span>
+</footer>
+
+</body>
+</html>

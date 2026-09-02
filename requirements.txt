@@ -1,0 +1,8 @@
+# Dependencias do Editor de PDF
+# Instale com:  pip install -r requirements.txt
+
+PyMuPDF>=1.24        # leitura, edicao e gravacao do PDF
+Pillow>=10.0         # exibicao das paginas renderizadas na interface
+
+# Somente para gerar o executavel (.exe):
+pyinstaller>=6.0
