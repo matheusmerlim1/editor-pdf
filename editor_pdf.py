@@ -541,7 +541,7 @@ class EditorPDF(tk.Tk):
             return
         self.guardar_undo()
         try:
-            self.substituir_trechos(self.doc[self.pagina_atual], [(trecho, novo)])
+            transbordou = self.substituir_trechos(self.doc[self.pagina_atual], [(trecho, novo)])
         except Exception as exc:
             traceback.print_exc()
             messagebox.showerror(APP_NOME, "Nao foi possivel aplicar a alteracao:\n\n%s" % exc)
@@ -552,7 +552,11 @@ class EditorPDF(tk.Tk):
         self._atualizar_titulo()
         if indice < len(self.trechos):
             self.selecionar(indice)
-        self.status("Texto alterado. Use 'Salvar' ou 'Salvar como...' para gravar o PDF.")
+        if transbordou:
+            self.status("Texto alterado (o corpo %.1f foi mantido, mas o texto passou da "
+                        "margem da pagina)." % trecho["size"])
+        else:
+            self.status("Texto alterado. Use 'Salvar' ou 'Salvar como...' para gravar o PDF.")
 
     def apagar_trecho(self):
         if self.doc is None or self.selecionado is None:
@@ -593,13 +597,18 @@ class EditorPDF(tk.Tk):
 
         # 3) escreve o texto novo
         limite = pagina.rect.x1 - MARGEM_DIREITA
+        transbordaram = 0
         for trecho, novo in pares:
             if not novo.strip():
                 continue
             novo = normalizar_texto(novo)
             ponto = fitz.Point(*trecho["origin"]) * desrotacao
             fonte = trecho["base14"]
-            tamanho = self.tamanho_que_cabe(novo, fonte, trecho["size"], limite - ponto.x)
+            # O corpo da fonte original e sempre mantido. Se o texto novo for
+            # mais comprido, ele avanca para a direita em vez de encolher.
+            tamanho = trecho["size"]
+            if self.passa_da_margem(novo, fonte, tamanho, limite - ponto.x):
+                transbordaram += 1
             try:
                 pagina.insert_text(ponto, novo, fontname=fonte, fontsize=tamanho,
                                    color=trecho["rgb"], rotate=(360 - rotacao) % 360)
@@ -610,19 +619,17 @@ class EditorPDF(tk.Tk):
                                    color=trecho["rgb"], rotate=(360 - rotacao) % 360)
         if rotacao:
             pagina.set_rotation(rotacao)
+        return transbordaram
 
     @staticmethod
-    def tamanho_que_cabe(texto, fonte, tamanho, largura_disponivel):
-        """Reduz o corpo da fonte apenas se o texto novo nao couber na pagina."""
+    def passa_da_margem(texto, fonte, tamanho, largura_disponivel):
+        """Diz se o texto novo, no corpo original, ultrapassa a margem da pagina."""
         if largura_disponivel <= 0:
-            return tamanho
+            return True
         try:
-            largura = fitz.get_text_length(texto, fontname=fonte, fontsize=tamanho)
+            return fitz.get_text_length(texto, fontname=fonte, fontsize=tamanho) > largura_disponivel
         except Exception:
-            return tamanho
-        if largura <= largura_disponivel:
-            return tamanho
-        return max(4.0, tamanho * largura_disponivel / largura)
+            return False
 
     # ------------------------------------------------ localizar/substituir --
     def localizar_substituir(self):

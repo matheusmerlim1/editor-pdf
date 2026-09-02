@@ -95,12 +95,57 @@ def main():
     conferir(por_texto[novos_textos[0]]["rgb"][2] > 0.5, "cor azul mantida")
     conferir(len(doc[0].get_drawings()) >= 1, "desenho vetorial preservado")
 
-    print("\nAjuste de tamanho:")
-    grande = EditorPDF.tamanho_que_cabe("x" * 400, "helv", 18, 400)
-    conferir(grande < 18, "fonte reduzida quando o texto nao cabe")
-    igual = EditorPDF.tamanho_que_cabe("ok", "helv", 12, 400)
-    conferir(igual == 12, "fonte mantida quando o texto cabe")
     doc.close()
+
+    print("\nO corpo da fonte precisa ser mantido, mesmo com texto bem maior:")
+    origem = os.path.join(pasta, "corpo.pdf")
+    saida = os.path.join(pasta, "corpo_editado.pdf")
+    d = fitz.open()
+    p1 = d.new_page()
+    p1.insert_text((60, 100), "Nome: Joao", fontname="helv", fontsize=12)
+    p1.insert_text((420, 140), "pendente", fontname="helv", fontsize=10)   # coluna a direita
+    p1.insert_text((60, 180), "Titulo", fontname="hebo", fontsize=20)
+    d.save(origem)
+    d.close()
+
+    d = fitz.open(origem)
+    pagina = d[0]
+    antes = EditorPDF.extrair_trechos(EditorPDF, pagina)
+    longos = [
+        "Nome: Joao Pedro da Silva Oliveira Santos Ferreira Costa Almeida Rodrigues Nascimento",
+        "aguardando conferencia do setor responsavel pela manutencao predial",
+        "Titulo bem mais comprido do que o original para forcar o transbordo",
+    ]
+    transbordaram = EditorPDF.substituir_trechos(EditorPDF, pagina, list(zip(antes, longos)))
+    d.save(saida, garbage=4, deflate=True)
+    d.close()
+
+    d = fitz.open(saida)
+    # O texto que passa da margem fica fora da area visivel e a extracao o
+    # devolve cortado, por isso a comparacao e feita pelo inicio do texto.
+    obtidos = EditorPDF.extrair_trechos(EditorPDF, d[0])
+
+    def achar(texto):
+        for t in obtidos:
+            if texto.startswith(t["text"][:20]):
+                return t
+        return None
+
+    for esperado, texto in zip([12.0, 10.0, 20.0], longos):
+        achado = achar(texto)
+        conferir(achado is not None and abs(achado["size"] - esperado) < 0.01,
+                 "corpo %.1f mantido em %r" % (esperado, texto[:32]))
+    conferir(achar(longos[2])["base14"] == "hebo", "negrito mantido no texto longo")
+    # o 1o texto ainda cabe (482 de 530 pt); os outros dois passam da margem
+    conferir(transbordaram == 2,
+             "os 2 transbordos foram sinalizados (obtidos: %d)" % transbordaram)
+    d.close()
+
+    print("\nDeteccao de transbordo:")
+    conferir(EditorPDF.passa_da_margem("x" * 400, "helv", 18, 400) is True,
+             "texto comprido e sinalizado")
+    conferir(EditorPDF.passa_da_margem("ok", "helv", 12, 400) is False,
+             "texto curto nao e sinalizado")
 
     print("\n" + "-" * 52)
     if falhas:

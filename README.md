@@ -106,10 +106,14 @@ mudando apenas a biblioteca que faz o trabalho:
 3. GRAVAÇÃO            doc.save(destino)                 doc.save() → download
 ```
 
-A fonte original nem sempre está embutida no arquivo, então o texto novo é reescrito com a fonte
+**O tamanho da letra é sempre preservado**: o corpo em pontos do trecho original é o mesmo usado no
+texto novo, aconteça o que acontecer. Se o texto novo for mais comprido, ele avança para a direita — e,
+quando passa da margem da página, o editor avisa na barra de estado em vez de encolher a fonte.
+
+Já a **fonte** nem sempre está embutida no arquivo, então o texto novo é reescrito com a fonte
 **base-14** equivalente (Helvetica, Times ou Courier, nas variações normal/negrito/itálico), escolhida
-pelo nome e pelos *flags* da fonte original. Se o texto novo ficar largo demais para a página, o corpo
-da fonte é reduzido apenas o necessário para caber.
+pelo nome e pelos atributos da fonte original. O estilo — sem serifa, com serifa, monoespaçada, negrito,
+itálico — é mantido; o desenho exato da letra é o da fonte equivalente.
 
 Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
 [`docs/editor.js`](docs/editor.js) (`gerarBytesEditados()`).
@@ -118,8 +122,8 @@ Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
 
 - **PDFs digitalizados** (somente imagem) não têm texto para identificar; seria necessário OCR. Os dois editores avisam quando isso acontece.
 - Na **versão online** o texto antigo é coberto, e não apagado: ele continua dentro do arquivo. Para retirá-lo de verdade, use a versão de mesa.
-- O texto novo é reescrito com fontes base-14, então uma fonte muito característica do documento original não é reproduzida com exatidão.
-- A edição é feita por trecho (span), não por parágrafo: textos muito maiores que o original não reorganizam a quebra de linha automaticamente.
+- A edição é feita por trecho (span), não por parágrafo: um texto muito maior que o original não reorganiza a quebra de linha sozinho. Como o tamanho da letra é preservado, o que passar da margem fica fora da área visível da página — o editor avisa quando isso acontece.
+- O texto novo usa a fonte base-14 equivalente, então uma fonte muito característica (Calibri, Georgia, Consolas...) vira a correspondente Helvetica, Times ou Courier, no mesmo tamanho e estilo.
 - Caracteres fora do conjunto latino-1 (grego, cirílico) não são suportados pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente.
 
 ## Estrutura do projeto
