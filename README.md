@@ -11,11 +11,11 @@ Funciona direto no navegador, sem instalar nada, ou como programa de mesa para W
 [![PyMuPDF](https://img.shields.io/badge/PyMuPDF-1.24%2B-1e2952)](https://pymupdf.readthedocs.io/)
 [![pdf.js](https://img.shields.io/badge/pdf.js-3.11-c1272d)](https://mozilla.github.io/pdf.js/)
 [![Licença MIT](https://img.shields.io/badge/Licen%C3%A7a-MIT-green.svg)](LICENSE)
-[![Executável Windows](https://github.com/SEU-USUARIO/editor-pdf/actions/workflows/build.yml/badge.svg)](https://github.com/SEU-USUARIO/editor-pdf/actions/workflows/build.yml)
+[![Executável Windows](https://github.com/matheusmerlim1/editor-pdf/actions/workflows/build.yml/badge.svg)](https://github.com/matheusmerlim1/editor-pdf/actions/workflows/build.yml)
 
-[**Editar um PDF online**](https://SEU-USUARIO.github.io/editor-pdf/editor.html) ·
-[Baixar para Windows](https://github.com/SEU-USUARIO/editor-pdf/releases/latest) ·
-[Página do projeto](https://SEU-USUARIO.github.io/editor-pdf/) ·
+[**Editar um PDF online**](https://matheusmerlim1.github.io/editor-pdf/editor.html) ·
+[Baixar para Windows](https://github.com/matheusmerlim1/editor-pdf/releases/latest) ·
+[Página do projeto](https://matheusmerlim1.github.io/editor-pdf/) ·
 [Como funciona](#como-funciona)
 
 <img src="assets/tela-online.png" width="880" alt="Editor de PDF aberto no navegador">
@@ -54,7 +54,7 @@ Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+
 
 ## Como usar
 
-1. Abra o editor ([online](https://SEU-USUARIO.github.io/editor-pdf/editor.html) ou o programa) e escolha o arquivo PDF.
+1. Abra o editor ([online](https://matheusmerlim1.github.io/editor-pdf/editor.html) ou o programa) e escolha o arquivo PDF.
 2. Os trechos de texto reconhecidos aparecem contornados na página e listados à direita.
 3. Clique no trecho que deseja alterar — ele fica marcado em vermelho e o texto vai para a caixa de edição.
 4. Digite o novo texto e clique em **Aplicar**. A página é atualizada na hora.
@@ -64,12 +64,12 @@ Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+
 
 ### Opção 1 — online, sem instalar nada
 
-Acesse **[SEU-USUARIO.github.io/editor-pdf/editor.html](https://SEU-USUARIO.github.io/editor-pdf/editor.html)**.
+Acesse **[matheusmerlim1.github.io/editor-pdf/editor.html](https://matheusmerlim1.github.io/editor-pdf/editor.html)**.
 O PDF é lido e gravado pelo próprio navegador: nenhum arquivo é enviado para servidor algum.
 
 ### Opção 2 — executável para Windows
 
-Baixe o `EditorPDF.exe` em **[Releases](https://github.com/SEU-USUARIO/editor-pdf/releases/latest)** e execute
+Baixe o `EditorPDF.exe` em **[Releases](https://github.com/matheusmerlim1/editor-pdf/releases/latest)** e execute
 com dois cliques. É um arquivo único e portátil; também é possível arrastar um PDF sobre ele para abrir direto.
 
 <img src="assets/tela.png" width="760" alt="Janela do programa de mesa no Windows">
@@ -77,7 +77,7 @@ com dois cliques. É um arquivo único e portátil; também é possível arrasta
 ### Opção 3 — a partir do código-fonte
 
 ```bash
-git clone https://github.com/SEU-USUARIO/editor-pdf.git
+git clone https://github.com/matheusmerlim1/editor-pdf.git
 cd editor-pdf
 pip install -r requirements.txt
 python editor_pdf.py
@@ -143,7 +143,7 @@ editor-pdf/
 ## Publicando a página no GitHub Pages
 
 Depois de enviar o repositório, em **Settings → Pages** escolha *Deploy from a branch*,
-branch `main` e pasta `/docs`. A página fica em `https://SEU-USUARIO.github.io/editor-pdf/`
+branch `main` e pasta `/docs`. A página fica em `https://matheusmerlim1.github.io/editor-pdf/`
 e o editor em `.../editor.html`.
 
 ## Tecnologias
