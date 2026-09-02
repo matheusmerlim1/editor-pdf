@@ -141,6 +141,48 @@ def main():
              "os 2 transbordos foram sinalizados (obtidos: %d)" % transbordaram)
     d.close()
 
+    print("\nLinha justificada: o espacamento entre palavras deve ser preservado:")
+    origem = os.path.join(pasta, "justificado.pdf")
+    saida = os.path.join(pasta, "justificado_editado.pdf")
+    paragrafo = ("3480 horas, em regime modular. Reconhecimento renovado nos termos da "
+                 "Portaria MEC no 913, de 27/12/2018, publicada no D.O.U. no 249, Secao 1, "
+                 "Pag. 134 a 141 de 28/12/2018. Resolucao No 2, de 20 de dezembro de 2019")
+    d = fitz.open()
+    d.new_page().insert_textbox(fitz.Rect(60, 90, 535, 180), paragrafo,
+                                fontname="helv", fontsize=10,
+                                align=fitz.TEXT_ALIGN_JUSTIFY)
+    d.save(origem)
+    d.close()
+
+    d = fitz.open(origem)
+    linha = EditorPDF.extrair_trechos(EditorPDF, d[0])[0]
+    largura_antes = linha["bbox"][2] - linha["bbox"][0]
+    natural = fitz.get_text_length(linha["text"], fontname=linha["base14"],
+                                   fontsize=linha["size"])
+    conferir(largura_antes - natural > 5,
+             "a linha de teste esta mesmo justificada (%.1f pt de folga)"
+             % (largura_antes - natural))
+
+    EditorPDF.substituir_trechos(
+        EditorPDF, d[0],
+        [(linha, linha["text"].replace("Reconhecimento", "Reconhecimentos"))])
+    d.save(saida, garbage=4, deflate=True)
+    d.close()
+
+    d = fitz.open(saida)
+    editada = [t for t in EditorPDF.extrair_trechos(EditorPDF, d[0])
+               if "Reconhecimentos" in t["text"]]
+    conferir(len(editada) == 1,
+             "a linha continua sendo um unico trecho (obtidos: %d)" % len(editada))
+    if editada:
+        largura_depois = editada[0]["bbox"][2] - editada[0]["bbox"][0]
+        conferir(abs(largura_depois - largura_antes) < 2,
+                 "a linha manteve a largura: %.1f -> %.1f pt"
+                 % (largura_antes, largura_depois))
+        conferir(abs(editada[0]["size"] - linha["size"]) < 0.01, "o corpo continua o mesmo")
+    d.close()
+
+
     print("\nDeteccao de transbordo:")
     conferir(EditorPDF.passa_da_margem("x" * 400, "helv", 18, 400) is True,
              "texto comprido e sinalizado")

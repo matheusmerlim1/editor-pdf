@@ -110,6 +110,12 @@ mudando apenas a biblioteca que faz o trabalho:
 texto novo, aconteça o que acontecer. Se o texto novo for mais comprido, ele avança para a direita — e,
 quando passa da margem da página, o editor avisa na barra de estado em vez de encolher a fonte.
 
+**O espaçamento entre as palavras também**. Em uma linha justificada, o PDF espalha as palavras com
+espaço extra para preencher a medida; escrever o texto novo com o espaçamento natural da fonte faria a
+linha encolher e deixar de alcançar a margem. O editor mede a largura que o trecho tinha e devolve esse
+excesso pelo operador `Tw` — o mesmo recurso que o documento original usava — então a linha mantém a
+largura e continua sendo um único trecho para edições seguintes.
+
 Já a **fonte** nem sempre está embutida no arquivo, então o texto novo é reescrito com a fonte
 **base-14** equivalente (Helvetica, Times ou Courier, nas variações normal/negrito/itálico), escolhida
 pelo nome e pelos atributos da fonte original. O estilo — sem serifa, com serifa, monoespaçada, negrito,

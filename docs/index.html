@@ -452,6 +452,9 @@ pagina.<span class="fn">insert_text</span>(origem, texto_novo, fontname, fontsiz
       <strong>O tamanho da letra é sempre preservado</strong>: o corpo em pontos do trecho
       original é o mesmo usado no texto novo. Se o texto novo for mais comprido, ele avança para
       a direita, e o editor avisa quando passa da margem — nunca encolhe a fonte para caber.
+      <strong>O espaçamento entre as palavras também</strong>: em uma linha justificada, o excesso
+      de largura do trecho original é devolvido pelo operador <code>Tw</code>, o mesmo que o
+      documento usava para justificar, e a linha continua alcançando a margem.
       A fonte, essa sim, muda: como ela nem sempre vem embutida no arquivo, o texto novo é
       reescrito com a <strong>base-14</strong> equivalente — as três famílias que todo leitor de
       PDF é obrigado a ter — mantendo o estilo (serifa, monoespaçada, negrito, itálico).

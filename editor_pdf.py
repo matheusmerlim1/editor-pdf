@@ -17,6 +17,7 @@ Requisitos: PyMuPDF, Pillow (tkinter ja acompanha o Python no Windows).
 """
 
 import os
+import re
 import sys
 import tempfile
 import traceback
@@ -35,6 +36,7 @@ from PIL import Image, ImageTk
 APP_NOME = "Editor de PDF"
 MAX_UNDO = 25
 MARGEM_DIREITA = 5.0          # margem usada para caber o texto novo na pagina
+LIMITE_ESPACO = 1.5           # espaco extra maximo entre palavras, em larguras de espaco
 COR_CAIXA = "#c8c8ff"         # cor das caixas de texto detectadas
 COR_SELECAO = "#ff0000"       # cor da caixa selecionada
 
@@ -597,6 +599,7 @@ class EditorPDF(tk.Tk):
 
         # 3) escreve o texto novo
         limite = pagina.rect.x1 - MARGEM_DIREITA
+        giro = (360 - rotacao) % 360
         transbordaram = 0
         for trecho, novo in pares:
             if not novo.strip():
@@ -609,17 +612,76 @@ class EditorPDF(tk.Tk):
             tamanho = trecho["size"]
             if self.passa_da_margem(novo, fonte, tamanho, limite - ponto.x):
                 transbordaram += 1
+
+            # Linhas justificadas trazem espaco extra entre as palavras. Escrever
+            # o texto novo com o espacamento natural da fonte encolheria a linha,
+            # que deixaria de alcancar a margem. O excesso de largura do trecho
+            # original e devolvido pelo operador Tw do PDF - o mesmo recurso que
+            # o documento usava - de modo que a linha continua sendo um so trecho.
+            largura_alvo = trecho["bbox"][2] - trecho["bbox"][0]
+            extra = self.espaco_extra(novo, fonte, tamanho, largura_alvo)
+            antes = set(pagina.get_contents())
             try:
                 pagina.insert_text(ponto, novo, fontname=fonte, fontsize=tamanho,
-                                   color=trecho["rgb"], rotate=(360 - rotacao) % 360)
+                                   color=trecho["rgb"], rotate=giro)
             except Exception:
-                # caracteres fora do conjunto latino: reescreve com fonte padrao
+                # caracteres fora do conjunto latino: usa a fonte padrao
                 seguro = novo.encode("latin-1", "replace").decode("latin-1")
                 pagina.insert_text(ponto, seguro, fontname="helv", fontsize=tamanho,
-                                   color=trecho["rgb"], rotate=(360 - rotacao) % 360)
+                                   color=trecho["rgb"], rotate=giro)
+            if extra:
+                self.ajustar_espacamento(pagina, antes, extra)
         if rotacao:
             pagina.set_rotation(rotacao)
         return transbordaram
+
+    @staticmethod
+    def ajustar_espacamento(pagina, xrefs_antes, extra):
+        """Acrescenta o operador Tw (espaco entre palavras) ao texto recem-escrito.
+
+        O PDF usa Tw para justificar linhas; aplicando o mesmo valor, o texto
+        novo ocupa a largura que o trecho original tinha, e continua sendo um
+        unico trecho de texto para futuras edicoes.
+        """
+        try:
+            documento = pagina.parent
+            conteudos = pagina.get_contents()
+            novos = [x for x in conteudos if x not in xrefs_antes]
+            xref = novos[-1] if novos else (conteudos[-1] if conteudos else 0)
+            if not xref:
+                return
+            fluxo = documento.xref_stream(xref)
+            marcas = list(re.finditer(rb"/[^\s/]+\s+[\d.]+\s+Tf", fluxo))
+            if not marcas:
+                return
+            fim = marcas[-1].end()
+            documento.update_stream(
+                xref, fluxo[:fim] + (" %.3f Tw" % extra).encode("latin-1") + fluxo[fim:])
+        except Exception:
+            traceback.print_exc()   # sem espacamento extra, o texto ainda fica correto
+
+    @staticmethod
+    def espaco_extra(texto, fonte, tamanho, largura_alvo):
+        """Espaco a acrescentar em cada intervalo para a linha manter a largura
+        que tinha no documento (o que preserva linhas justificadas).
+
+        Devolve 0,0 quando nao ha o que espalhar - texto de uma palavra so,
+        texto que ja ficou mais largo que o original, ou folga tao grande que
+        espalhar deixaria as palavras longe demais umas das outras.
+        """
+        partes = texto.split(" ")
+        if len(partes) < 2 or largura_alvo <= 0:
+            return 0.0
+        try:
+            natural = fitz.get_text_length(texto, fontname=fonte, fontsize=tamanho)
+            espaco = fitz.get_text_length(" ", fontname=fonte, fontsize=tamanho)
+        except Exception:
+            return 0.0
+        folga = largura_alvo - natural
+        if folga <= 0.2 or espaco <= 0:
+            return 0.0
+        extra = folga / (len(partes) - 1)
+        return extra if extra <= LIMITE_ESPACO * espaco else 0.0
 
     @staticmethod
     def passa_da_margem(texto, fonte, tamanho, largura_disponivel):
