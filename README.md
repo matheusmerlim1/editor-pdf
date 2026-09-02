@@ -44,7 +44,8 @@ ficar escondido embaixo de um retângulo.
 |---|---|
 | **Abrir PDF** | Carrega o arquivo e renderiza as páginas na tela (a versão de mesa também abre PDFs com senha). |
 | **Identificar o texto** | Extrai todos os trechos de texto da página, com posição, fonte, corpo e cor. |
-| **Editar** | Clique no texto na própria página (ou escolha na lista lateral) e digite o novo conteúdo. |
+| **Editar no lugar** | Clique no texto **na própria página** e digite ali mesmo, sobre o documento — sem caixa de texto separada. |
+| **Ajustar o trecho** | Tamanho da letra, fonte (sem serifa, com serifa, monoespaçada), negrito, itálico e alinhamento (como no original, à esquerda ou justificado). |
 | **Localizar e substituir** | Troca uma palavra ou frase em uma página ou no documento inteiro de uma só vez. |
 | **Apagar trecho** | Tira um texto da página. |
 | **Desfazer** | `Ctrl+Z` volta atrás (25 níveis na versão de mesa). |
@@ -56,9 +57,11 @@ Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+
 
 1. Abra o editor ([online](https://matheusmerlim1.github.io/editor-pdf/editor.html) ou o programa) e escolha o arquivo PDF.
 2. Os trechos de texto reconhecidos aparecem contornados na página e listados à direita.
-3. Clique no trecho que deseja alterar — ele fica marcado em vermelho e o texto vai para a caixa de edição.
-4. Digite o novo texto e clique em **Aplicar**. A página é atualizada na hora.
-5. Salve (ou baixe) o PDF editado.
+3. Clique no trecho que deseja alterar — ele fica marcado em vermelho e vira um campo de digitação **no próprio lugar do texto**, com a mesma fonte, tamanho e cor.
+4. Digite ali mesmo. No painel da direita dá para mudar o tamanho da letra, a fonte, o estilo e o alinhamento do trecho.
+5. Salve (ou baixe) o PDF editado. `Esc` cancela a edição do trecho.
+
+> Os controles de tamanho, fonte e alinhamento e a digitação no lugar estão na versão online. O programa de mesa edita pelo painel lateral.
 
 ## Instalação
 

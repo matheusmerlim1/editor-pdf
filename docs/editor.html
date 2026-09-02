@@ -176,12 +176,30 @@ button.destaque:hover:not(:disabled), .botao.destaque:hover { background: var(--
 }
 #detalhes dt { color: var(--tinta-fraca); }
 #detalhes dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-#campo {
-  width: 100%; min-height: 5.5rem; resize: vertical; padding: .6rem .7rem;
-  font-family: var(--mono); font-size: .84rem; line-height: 1.5;
-  border: 1px solid var(--linha-forte); border-radius: 7px;
-  background: var(--papel); color: var(--tinta);
+.ajustes { display: grid; gap: .55rem; margin-bottom: .9rem; }
+.ajuste { display: grid; grid-template-columns: 5.6rem 1fr; align-items: center; gap: .6rem; font-size: .82rem; color: var(--tinta-suave); }
+.ajuste select {
+  font-family: var(--display); font-size: .82rem; padding: .3rem .4rem;
+  border: 1px solid var(--linha-forte); border-radius: 6px;
+  background: var(--superficie); color: var(--tinta); width: 100%;
 }
+.passo { display: flex; align-items: center; gap: .25rem; }
+.passo button { padding: .2rem .5rem; font-size: .9rem; line-height: 1; }
+.passo input {
+  width: 3.6rem; text-align: center; font-family: var(--mono); font-size: .8rem;
+  padding: .28rem .2rem; border: 1px solid var(--linha-forte); border-radius: 6px;
+  background: var(--superficie); color: var(--tinta);
+}
+.estilos { display: flex; gap: .3rem; }
+.estilos button { padding: .22rem .6rem; min-width: 2rem; justify-content: center; }
+.estilos button[aria-pressed="true"] { background: var(--azul-fraco); border-color: var(--azul); color: var(--azul); }
+
+/* trecho sendo editado direto na pagina */
+.trecho.editando {
+  outline: 2px solid var(--vermelho); outline-offset: 2px;
+  cursor: text; z-index: 5; min-width: 4px;
+}
+.trecho.editando:focus { outline: 2px solid var(--vermelho); }
 .acoes-edicao { display: flex; gap: .5rem; margin-top: .7rem; flex-wrap: wrap; }
 .dica { font-size: .76rem; color: var(--tinta-fraca); margin: .7rem 0 0; }
 
@@ -281,13 +299,53 @@ dialog .rodape-dialogo { display: flex; justify-content: flex-end; gap: .5rem; m
       <p id="semSelecao">Clique em um texto da página, ou na lista acima, para editá-lo.</p>
       <div id="painel" hidden>
         <dl id="detalhes"></dl>
-        <textarea id="campo" spellcheck="false" aria-label="Texto do trecho"></textarea>
+
+        <div class="ajustes">
+          <label class="ajuste">
+            <span>Tamanho</span>
+            <span class="passo">
+              <button type="button" id="menorCorpo" aria-label="Diminuir">&minus;</button>
+              <input type="number" id="corpo" step="0.5" min="2" max="300" aria-label="Corpo da fonte em pontos">
+              <button type="button" id="maiorCorpo" aria-label="Aumentar">+</button>
+            </span>
+          </label>
+
+          <label class="ajuste">
+            <span>Fonte</span>
+            <select id="familia">
+              <option value="auto">Como no original</option>
+              <option value="helv">Sem serifa (Helvetica)</option>
+              <option value="tiro">Com serifa (Times)</option>
+              <option value="cour">Monoespaçada (Courier)</option>
+            </select>
+          </label>
+
+          <div class="ajuste">
+            <span>Estilo</span>
+            <span class="estilos">
+              <button type="button" id="negrito" aria-pressed="false" title="Negrito"><b>N</b></button>
+              <button type="button" id="italico" aria-pressed="false" title="Itálico"><i>I</i></button>
+            </span>
+          </div>
+
+          <label class="ajuste">
+            <span>Alinhamento</span>
+            <select id="alinhamento">
+              <option value="original">Como no original</option>
+              <option value="esquerda">À esquerda</option>
+              <option value="justificado">Justificado</option>
+            </select>
+          </label>
+        </div>
+
         <div class="acoes-edicao">
-          <button type="button" id="aplicar" class="destaque">Aplicar</button>
           <button type="button" id="restaurar">Restaurar</button>
           <button type="button" id="apagar">Apagar trecho</button>
         </div>
-        <p class="dica">Enter aplica · Ctrl+Z desfaz · Ctrl+H substitui · Ctrl+S baixa</p>
+        <p class="dica">
+          Clique no texto da página e digite direto nele. Esc cancela ·
+          Ctrl+Z desfaz · Ctrl+H substitui · Ctrl+S baixa
+        </p>
       </div>
     </div>
   </aside>
