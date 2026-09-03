@@ -460,9 +460,11 @@ pagina.<span class="fn">insert_text</span>(origem, texto_novo, fontname, fontsiz
       <strong>O espaçamento entre as palavras também</strong>: em uma linha justificada, o excesso
       de largura do trecho original é devolvido pelo operador <code>Tw</code>, o mesmo que o
       documento usava para justificar, e a linha continua alcançando a margem.
-      A fonte, essa sim, muda: como ela nem sempre vem embutida no arquivo, o texto novo é
-      reescrito com a <strong>base-14</strong> equivalente — as três famílias que todo leitor de
-      PDF é obrigado a ter — mantendo o estilo (serifa, monoespaçada, negrito, itálico).
+      <strong>A fonte do documento também</strong>: o texto novo é escrito com a mesma fonte
+      embutida no arquivo, então Calibri continua Calibri e o trecho editado fica com o desenho
+      de letra idêntico ao do resto da página. Quando a fonte não está embutida — ou não tem
+      algum caractere que você digitou — o texto cai para a <strong>base-14</strong> equivalente,
+      as três famílias que todo leitor de PDF é obrigado a ter, mantendo o estilo.
     </p>
     <div class="fontes">
       <div class="fonte">
@@ -522,7 +524,7 @@ python editor_pdf.py</pre>
     <div class="cabecalho-secao"><h2>Limitações</h2></div>
     <ul class="limitacoes">
       <li><strong>PDFs digitalizados</strong> são só imagem: não há texto para identificar. Seria preciso reconhecimento óptico de caracteres (OCR) — o programa avisa quando isso acontece.</li>
-      <li>Como o texto é reescrito com as fontes base-14, <strong>uma fonte muito característica do documento não é reproduzida com exatidão</strong>: Calibri vira Helvetica, Georgia vira Times, Consolas vira Courier — no mesmo tamanho e no mesmo estilo.</li>
+      <li>Quando a fonte <strong>não está embutida</strong> no arquivo, o texto novo usa a base-14 equivalente: Calibri vira Helvetica, Georgia vira Times, Consolas vira Courier — no mesmo tamanho e no mesmo estilo, com o desenho da letra aproximado.</li>
       <li>A edição é feita por trecho, e não por parágrafo: um texto bem maior que o original <strong>não reorganiza a quebra de linha</strong> sozinho. Como o tamanho da letra é preservado, o que passar da margem fica fora da área visível da página — o editor avisa quando isso acontece.</li>
       <li>Na <strong>versão online</strong> o texto antigo é coberto com a cor do fundo, e não apagado: ele continua dentro do arquivo e pode ser recuperado por quem souber procurar. Para retirá-lo de verdade, use a versão de mesa, que aplica a redação do próprio PDF.</li>
       <li>Alfabetos fora do conjunto latino-1 (grego, cirílico) não são cobertos pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente.</li>

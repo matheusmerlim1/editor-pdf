@@ -103,6 +103,66 @@ def normalizar_texto(texto):
     return texto
 
 
+# Fontes embutidas ja extraidas do documento, para nao repetir o trabalho:
+# {(id do documento, xref): objeto fitz.Font ou None}
+_FONTES_EM_CACHE = {}
+
+
+def normalizar_fonte(nome):
+    """Reduz 'ABCDEF+Calibri-Bold' a 'calibribold', para poder comparar."""
+    nome = (nome or "").split("+")[-1]
+    return re.sub(r"[^a-z0-9]", "", nome.lower())
+
+
+def fontes_da_pagina(pagina):
+    """Fontes embutidas na pagina, pelo nome normalizado.
+
+    Devolve, para cada uma, o nome de referencia dentro da pagina (que permite
+    reaproveita-la sem duplicar o arquivo), o xref e o tipo.
+    """
+    mapa = {}
+    try:
+        for dados in pagina.get_fonts(full=True):
+            xref, ext, tipo, basefont, refname = dados[0], dados[1], dados[2], dados[3], dados[4]
+            if not refname or ext in ("n/a", ""):
+                continue          # fonte nao embutida: nao da para reaproveitar
+            mapa[normalizar_fonte(basefont)] = {
+                "ref": refname, "xref": xref, "tipo": tipo, "nome": basefont,
+                # Tw (espaco entre palavras) so vale para fontes de 1 byte
+                "aceita_tw": tipo != "Type0",
+            }
+    except Exception:
+        pass
+    return mapa
+
+
+def achar_fonte(mapa, nome_do_span):
+    """Liga o nome da fonte que aparece no trecho a uma fonte da pagina."""
+    alvo = normalizar_fonte(nome_do_span)
+    if not alvo:
+        return None
+    if alvo in mapa:
+        return mapa[alvo]
+    for chave, info in mapa.items():          # 'Calibri' casa com 'CalibriRegular'
+        if chave.startswith(alvo) or alvo.startswith(chave):
+            return info
+    return None
+
+
+def fonte_embutida(documento, info):
+    """Carrega a fonte do documento para medir texto e conferir os glifos."""
+    if not info:
+        return None
+    chave = (id(documento), info["xref"])
+    if chave not in _FONTES_EM_CACHE:
+        try:
+            buffer = documento.extract_font(info["xref"])[3]
+            _FONTES_EM_CACHE[chave] = fitz.Font(fontbuffer=buffer) if buffer else None
+        except Exception:
+            _FONTES_EM_CACHE[chave] = None
+    return _FONTES_EM_CACHE[chave]
+
+
 def cor_para_rgb(valor):
     """Converte a cor inteira sRGB do PyMuPDF para tupla (r, g, b) de 0 a 1."""
     try:
@@ -324,6 +384,10 @@ class EditorPDF(tk.Tk):
 
     def _gravar(self, destino):
         try:
+            try:
+                self.doc.subset_fonts()   # deixa so os glifos usados
+            except Exception:
+                pass
             mesmo = self.caminho and os.path.abspath(destino) == os.path.abspath(self.caminho)
             if mesmo:
                 # Nao e possivel gravar por cima do arquivo aberto: usa temporario.
@@ -437,6 +501,7 @@ class EditorPDF(tk.Tk):
             dados = pagina.get_text("dict")
         except Exception:
             return trechos
+        embutidas = fontes_da_pagina(pagina)
         for bloco in dados.get("blocks", []):
             if bloco.get("type", 1) != 0:      # 0 = bloco de texto
                 continue
@@ -456,6 +521,8 @@ class EditorPDF(tk.Tk):
                         "flags": flags,
                         "rgb": cor_para_rgb(span.get("color", 0)),
                         "base14": mapear_fonte(span.get("font", ""), flags),
+                        # fonte do proprio documento, quando embutida
+                        "fonte_doc": achar_fonte(embutidas, span.get("font", "")),
                     })
         return trechos
 
@@ -606,34 +673,86 @@ class EditorPDF(tk.Tk):
                 continue
             novo = normalizar_texto(novo)
             ponto = fitz.Point(*trecho["origin"]) * desrotacao
+            tamanho = trecho["size"]     # o corpo original e sempre mantido
+
+            # A fonte do proprio documento e preferida: reaproveitada pelo nome
+            # que ja consta nos recursos da pagina, ela nao duplica o arquivo e
+            # mantem o desenho exato das letras. So e trocada pela base-14
+            # equivalente quando nao esta embutida ou nao tem algum caractere.
+            info = trecho.get("fonte_doc")
+            fonte_doc = fonte_embutida(pagina.parent, info)
             fonte = trecho["base14"]
-            # O corpo da fonte original e sempre mantido. Se o texto novo for
-            # mais comprido, ele avanca para a direita em vez de encolher.
-            tamanho = trecho["size"]
-            if self.passa_da_margem(novo, fonte, tamanho, limite - ponto.x):
+            medir = lambda t, c=tamanho: fitz.get_text_length(t, fontname=trecho["base14"], fontsize=c)
+            aceita_tw = True
+            if fonte_doc is not None and all(fonte_doc.has_glyph(ord(c)) for c in novo):
+                nome_na_pagina = self.garantir_fonte(pagina, info)
+                if nome_na_pagina:
+                    fonte = nome_na_pagina
+                    aceita_tw = info["aceita_tw"]
+                    medir = lambda t, c=tamanho: fonte_doc.text_length(t, fontsize=c)
+
+            if medir(novo) > limite - ponto.x:
                 transbordaram += 1
 
-            # Linhas justificadas trazem espaco extra entre as palavras. Escrever
-            # o texto novo com o espacamento natural da fonte encolheria a linha,
-            # que deixaria de alcancar a margem. O excesso de largura do trecho
-            # original e devolvido pelo operador Tw do PDF - o mesmo recurso que
-            # o documento usava - de modo que a linha continua sendo um so trecho.
+            # Linhas justificadas trazem espaco extra entre as palavras. Sem ele
+            # a linha encolheria e deixaria de alcancar a margem; a folga que o
+            # trecho original tinha e devolvida aqui.
             largura_alvo = trecho["bbox"][2] - trecho["bbox"][0]
-            extra = self.espaco_extra(novo, fonte, tamanho, largura_alvo)
-            antes = set(pagina.get_contents())
-            try:
-                pagina.insert_text(ponto, novo, fontname=fonte, fontsize=tamanho,
-                                   color=trecho["rgb"], rotate=giro)
-            except Exception:
-                # caracteres fora do conjunto latino: usa a fonte padrao
-                seguro = novo.encode("latin-1", "replace").decode("latin-1")
-                pagina.insert_text(ponto, seguro, fontname="helv", fontsize=tamanho,
-                                   color=trecho["rgb"], rotate=giro)
-            if extra:
-                self.ajustar_espacamento(pagina, antes, extra)
+            extra = self.espaco_extra(novo, medir, largura_alvo)
+
+            if extra and not aceita_tw:
+                # fontes de 2 bytes ignoram o operador Tw: as palavras vao uma
+                # a uma, em posicoes calculadas
+                x = ponto.x
+                for palavra in novo.split(" "):
+                    if palavra:
+                        self.escrever(pagina, fitz.Point(x, ponto.y), palavra,
+                                      fonte, tamanho, trecho["rgb"], giro)
+                    x += medir(palavra + " ") + extra
+            else:
+                antes = set(pagina.get_contents())
+                self.escrever(pagina, ponto, novo, fonte, tamanho, trecho["rgb"], giro)
+                if extra:
+                    self.ajustar_espacamento(pagina, antes, extra)
         if rotacao:
             pagina.set_rotation(rotacao)
         return transbordaram
+
+    @staticmethod
+    def garantir_fonte(pagina, info):
+        """Deixa a fonte do documento disponivel na pagina e devolve o nome dela.
+
+        Primeiro tenta reaproveitar o recurso que ja esta na pagina, o que nao
+        duplica nada no arquivo. A redacao remove esse recurso quando nenhum
+        outro texto da pagina usava a fonte; nesse caso ela e reinserida a
+        partir do proprio documento, e a copia sem uso sai na limpeza da
+        gravacao. Devolve None quando nao da para usar a fonte original.
+        """
+        try:
+            pagina.insert_font(fontname=info["ref"])
+            return info["ref"]
+        except Exception:
+            pass
+        try:
+            buffer = pagina.parent.extract_font(info["xref"])[3]
+            if not buffer:
+                return None
+            nome = "doc%d" % info["xref"]
+            pagina.insert_font(fontname=nome, fontbuffer=buffer)
+            return nome
+        except Exception:
+            return None
+
+    @staticmethod
+    def escrever(pagina, ponto, texto, fonte, tamanho, cor, giro):
+        """Escreve o texto, caindo na fonte padrao se algum caractere faltar."""
+        try:
+            pagina.insert_text(ponto, texto, fontname=fonte, fontsize=tamanho,
+                               color=cor, rotate=giro)
+        except Exception:
+            seguro = texto.encode("latin-1", "replace").decode("latin-1")
+            pagina.insert_text(ponto, seguro, fontname="helv", fontsize=tamanho,
+                               color=cor, rotate=giro)
 
     @staticmethod
     def ajustar_espacamento(pagina, xrefs_antes, extra):
@@ -661,10 +780,11 @@ class EditorPDF(tk.Tk):
             traceback.print_exc()   # sem espacamento extra, o texto ainda fica correto
 
     @staticmethod
-    def espaco_extra(texto, fonte, tamanho, largura_alvo):
+    def espaco_extra(texto, medir, largura_alvo):
         """Espaco a acrescentar em cada intervalo para a linha manter a largura
         que tinha no documento (o que preserva linhas justificadas).
 
+        `medir` e a funcao que da a largura de um texto na fonte usada.
         Devolve 0,0 quando nao ha o que espalhar - texto de uma palavra so,
         texto que ja ficou mais largo que o original, ou folga tao grande que
         espalhar deixaria as palavras longe demais umas das outras.
@@ -673,8 +793,8 @@ class EditorPDF(tk.Tk):
         if len(partes) < 2 or largura_alvo <= 0:
             return 0.0
         try:
-            natural = fitz.get_text_length(texto, fontname=fonte, fontsize=tamanho)
-            espaco = fitz.get_text_length(" ", fontname=fonte, fontsize=tamanho)
+            natural = medir(texto)
+            espaco = medir(" ")
         except Exception:
             return 0.0
         folga = largura_alvo - natural

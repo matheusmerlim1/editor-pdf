@@ -119,10 +119,16 @@ linha encolher e deixar de alcançar a margem. O editor mede a largura que o tre
 excesso pelo operador `Tw` — o mesmo recurso que o documento original usava — então a linha mantém a
 largura e continua sendo um único trecho para edições seguintes.
 
-Já a **fonte** nem sempre está embutida no arquivo, então o texto novo é reescrito com a fonte
-**base-14** equivalente (Helvetica, Times ou Courier, nas variações normal/negrito/itálico), escolhida
-pelo nome e pelos atributos da fonte original. O estilo — sem serifa, com serifa, monoespaçada, negrito,
-itálico — é mantido; o desenho exato da letra é o da fonte equivalente.
+**A fonte do documento também é preservada.** O texto novo é escrito com a mesma fonte embutida no
+arquivo — Calibri continua Calibri, Verdana continua Verdana — de modo que o trecho editado fica com o
+desenho de letra idêntico ao do resto da página. No programa de mesa a fonte é reaproveitada do próprio
+recurso da página, sem duplicar nada; no navegador ela é lida dos objetos do PDF (`FontFile2`/`FontFile3`)
+e reembutida apenas com os glifos usados.
+
+Só quando isso não é possível — fonte não embutida no arquivo, formato que a biblioteca não lê, ou algum
+caractere que a fonte não desenha — o texto cai para a fonte **base-14** equivalente (Helvetica, Times ou
+Courier, nas variações normal/negrito/itálico), escolhida pelo nome e pelos atributos da original. No
+editor online também dá para escolher a fonte à mão, no painel do trecho.
 
 Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
 [`docs/editor.js`](docs/editor.js) (`gerarBytesEditados()`).
@@ -132,7 +138,8 @@ Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
 - **PDFs digitalizados** (somente imagem) não têm texto para identificar; seria necessário OCR. Os dois editores avisam quando isso acontece.
 - Na **versão online** o texto antigo é coberto, e não apagado: ele continua dentro do arquivo. Para retirá-lo de verdade, use a versão de mesa.
 - A edição é feita por trecho (span), não por parágrafo: um texto muito maior que o original não reorganiza a quebra de linha sozinho. Como o tamanho da letra é preservado, o que passar da margem fica fora da área visível da página — o editor avisa quando isso acontece.
-- O texto novo usa a fonte base-14 equivalente, então uma fonte muito característica (Calibri, Georgia, Consolas...) vira a correspondente Helvetica, Times ou Courier, no mesmo tamanho e estilo.
+- Quando a fonte **não está embutida** no PDF, o texto novo usa a base-14 equivalente (Helvetica, Times ou Courier) — mesmo tamanho e estilo, desenho de letra aproximado.
+- Ao reaproveitar a fonte do documento, o espaço pode ser gravado como `U+00A0` na extração do texto. Não muda nada na aparência, mas aparece em quem copia o texto do PDF.
 - Caracteres fora do conjunto latino-1 (grego, cirílico) não são suportados pelas fontes base-14. Travessões e aspas curvas são convertidos automaticamente.
 
 ## Estrutura do projeto

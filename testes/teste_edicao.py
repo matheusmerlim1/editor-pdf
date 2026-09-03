@@ -18,7 +18,8 @@ try:
 except ImportError:
     import fitz
 
-from editor_pdf import EditorPDF, mapear_fonte, normalizar_texto
+from editor_pdf import (EditorPDF, mapear_fonte, normalizar_texto,
+                        normalizar_fonte)
 
 
 def criar_pdf(caminho):
@@ -181,6 +182,45 @@ def main():
                  % (largura_antes, largura_depois))
         conferir(abs(editada[0]["size"] - linha["size"]) < 0.01, "o corpo continua o mesmo")
     d.close()
+
+
+    print("\nA fonte do documento deve ser reaproveitada:")
+    candidatas = [r"C:\Windows\Fonts\calibri.ttf", r"C:\Windows\Fontserdana.ttf",
+                  "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+    arquivo_fonte = next((c for c in candidatas if os.path.exists(c)), None)
+    if not arquivo_fonte:
+        print("  (pulado: nenhuma fonte de teste encontrada nesta maquina)")
+    else:
+        origem = os.path.join(pasta, "fonte.pdf")
+        saida = os.path.join(pasta, "fonte_editado.pdf")
+        d = fitz.open()
+        d.new_page().insert_text((60, 100), "linha de teste do documento",
+                                 fontname="propria", fontfile=arquivo_fonte, fontsize=11)
+        d.save(origem)
+        d.close()
+
+        d = fitz.open(origem)
+        trecho = EditorPDF.extrair_trechos(EditorPDF, d[0])[0]
+        nome_original = trecho["font"]
+        conferir(trecho.get("fonte_doc") is not None,
+                 "a fonte embutida %r foi reconhecida" % nome_original)
+        EditorPDF.substituir_trechos(EditorPDF, d[0],
+                                     [(trecho, "linha ja editada do documento")])
+        d.subset_fonts()
+        d.save(saida, garbage=4, deflate=True)
+        d.close()
+
+        d = fitz.open(saida)
+        gravado = EditorPDF.extrair_trechos(EditorPDF, d[0])[0]
+        conferir(normalizar_fonte(gravado["font"]).startswith(
+                     normalizar_fonte(nome_original)[:6]),
+                 "o texto novo saiu na fonte do documento (%r)" % gravado["font"])
+        conferir(abs(gravado["size"] - trecho["size"]) < 0.01, "o corpo continua o mesmo")
+        # a fonte do documento pode mapear o espaco para U+00A0 ao ser
+        # reaproveitada, entao a comparacao normaliza os espacos
+        conferir("ja editada" in normalizar_texto(gravado["text"]),
+                 "o texto novo foi gravado")
+        d.close()
 
 
     print("\nDeteccao de transbordo:")
