@@ -184,6 +184,34 @@ def main():
     d.close()
 
 
+    print("\nLinha comum encurtada nao pode ser espalhada:")
+    origem = os.path.join(pasta, "comum.pdf")
+    saida = os.path.join(pasta, "comum_editado.pdf")
+    d = fitz.open()
+    d.new_page().insert_text((60, 100), "Aluno responsavel pela entrega do trabalho",
+                             fontname="helv", fontsize=11)
+    d.save(origem)
+    d.close()
+
+    d = fitz.open(origem)
+    comum = EditorPDF.extrair_trechos(EditorPDF, d[0])[0]
+    largura_comum = comum["bbox"][2] - comum["bbox"][0]
+    texto_curto = "Aluno responsavel"
+    EditorPDF.substituir_trechos(EditorPDF, d[0], [(comum, texto_curto)])
+    d.save(saida, garbage=4, deflate=True)
+    d.close()
+
+    d = fitz.open(saida)
+    curto = EditorPDF.extrair_trechos(EditorPDF, d[0])[0]
+    natural = fitz.get_text_length(texto_curto, fontname="helv", fontsize=comum["size"])
+    largura_final = curto["bbox"][2] - curto["bbox"][0]
+    conferir(abs(largura_final - natural) < 1.5,
+             "a linha ficou com a largura natural (%.1f pt), e nao esticada ate %.1f"
+             % (largura_final, largura_comum))
+    conferir(largura_final < largura_comum - 10, "a linha realmente encurtou")
+    d.close()
+
+
     print("\nA fonte do documento deve ser reaproveitada:")
     candidatas = [r"C:\Windows\Fonts\calibri.ttf", r"C:\Windows\Fontserdana.ttf",
                   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]

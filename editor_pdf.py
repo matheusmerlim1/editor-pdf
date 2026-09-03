@@ -696,9 +696,13 @@ class EditorPDF(tk.Tk):
 
             # Linhas justificadas trazem espaco extra entre as palavras. Sem ele
             # a linha encolheria e deixaria de alcancar a margem; a folga que o
-            # trecho original tinha e devolvida aqui.
+            # trecho original tinha e devolvida aqui. O sinal de que a linha era
+            # justificada e o proprio texto original ocupar menos do que a caixa
+            # dele - numa linha comum os dois valores batem, e ai nada e
+            # espalhado, mesmo que o texto novo seja mais curto.
             largura_alvo = trecho["bbox"][2] - trecho["bbox"][0]
-            extra = self.espaco_extra(novo, medir, largura_alvo)
+            era_espalhada = medir(trecho["text"]) < largura_alvo - 0.5
+            extra = self.espaco_extra(novo, medir, largura_alvo) if era_espalhada else 0.0
 
             if extra and not aceita_tw:
                 # fontes de 2 bytes ignoram o operador Tw: as palavras vao uma
