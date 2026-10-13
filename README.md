@@ -53,6 +53,31 @@ ficar escondido embaixo de um retângulo.
 
 Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+H` localizar e substituir.
 
+### Acabamento do documento
+
+Além de editar o texto, o editor aplica ao PDF inteiro as "ações" que o
+[PDFCreator](https://github.com/pdfforge/pdfcreator) executa sobre o arquivo que gera. O código é próprio,
+escrito sobre o PyMuPDF e a pdf-lib; do PDFCreator vieram a lista de recursos e o comportamento de cada um.
+
+| Recurso | Online | Mesa | Descrição |
+|---|:-:|:-:|---|
+| **Numerar páginas** | ✓ | ✓ | Texto livre (`<Pagina> de <Paginas>`), seis posições, começar numa página qualquer (a capa não conta), espelhar nas páginas pares para impressão frente e verso. A versão de mesa também faz algarismos romanos, tamanho e cor. |
+| **Carimbo** | ✓ | ✓ | Texto semitransparente na diagonal da página ("CONFIDENCIAL", "RASCUNHO"), com o tamanho ajustado à página. Na versão de mesa também dá para escolher cor, tamanho, letra só com contorno e carimbar só a página atual. |
+| **Propriedades** | ✓ | ✓ | Título, autor, assunto e palavras-chave do arquivo. |
+| **Papel timbrado** | | ✓ | Põe as páginas de outro PDF (ou de uma imagem) atrás do conteúdo. Se o fundo tiver menos páginas, dá para repetir a última (timbrado na 1ª página + papel de continuação), recomeçar do início ou parar. |
+| **Capa e anexos** | | ✓ | Insere uma capa na frente e junta outros PDFs ou imagens no final. |
+| **Cópia protegida** | | ✓ | Grava uma cópia com criptografia AES-256, senha para abrir (opcional) e permissões de imprimir, copiar, alterar e anotar. |
+| **Imagens → PDF** | | ✓ | Cria um PDF com uma página por imagem (PNG, JPEG, TIFF, BMP...). Também dá para abrir uma imagem direto ou arrastá-la sobre o `.exe`. |
+| **PDF → imagens** | | ✓ | Exporta as páginas em PNG ou JPEG (um arquivo por página) ou num TIFF único com todas elas, na resolução escolhida. |
+
+Os textos de acabamento aceitam **marcadores**, trocados na hora de aplicar:
+`<Pagina>` `<Paginas>` `<Titulo>` `<Autor>` `<Assunto>` `<Arquivo>` `<Data>` `<Hora>`.
+Exemplo: um carimbo `Cópia de <Autor> - <Data>`.
+
+No programa de mesa esses recursos ficam no menu **Documento** (e em **Arquivo**, para a cópia protegida,
+as imagens e a exportação). Todos podem ser desfeitos com `Ctrl+Z`. Na versão online, o botão **Acabamento**
+guarda as escolhas, que são aplicadas quando o PDF é baixado.
+
 ## Como usar
 
 1. Abra o editor ([online](https://matheusmerlim1.github.io/editor-pdf/editor.html) ou o programa) e escolha o arquivo PDF.
@@ -147,6 +172,7 @@ Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
 ```
 editor-pdf/
 ├── editor_pdf.py              programa de mesa (Tkinter + PyMuPDF)
+├── acabamento.py              numeração, carimbo, timbrado, senha, imagens...
 ├── requirements.txt           dependências da versão de mesa
 ├── build_exe.bat              gera o dist/EditorPDF.exe
 ├── docs/                      página do projeto e editor online (GitHub Pages)
@@ -155,6 +181,7 @@ editor-pdf/
 │   ├── editor.js              leitura, edição e gravação do PDF no navegador
 │   └── exemplo.js             documento de exemplo embutido
 ├── testes/teste_edicao.py     testes automatizados do núcleo de edição
+├── testes/teste_acabamento.py testes automatizados do acabamento
 ├── exemplos/gerar_exemplo.py  cria um PDF de teste
 ├── assets/                    ícone e capturas de tela
 └── .github/workflows/         compilação automática do executável

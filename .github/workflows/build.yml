@@ -1,0 +1,57 @@
+name: Gerar executavel
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar o Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verificar o codigo
+        run: python -c "import ast; [ast.parse(open(f, encoding='utf-8').read()) for f in ('editor_pdf.py', 'acabamento.py')]; print('sintaxe ok')"
+
+      - name: Testar a edicao do PDF (sem interface)
+        run: python testes/teste_edicao.py
+
+      - name: Testar o acabamento do documento (sem interface)
+        run: python testes/teste_acabamento.py
+
+      - name: Compilar o executavel
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name EditorPDF
+          --icon assets/icone.ico
+          --add-data "assets/icone.ico;assets"
+          editor_pdf.py
+
+      - name: Publicar o executavel como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: EditorPDF-windows
+          path: dist/EditorPDF.exe
+
+      - name: Anexar o executavel a release (somente em tags)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/EditorPDF.exe

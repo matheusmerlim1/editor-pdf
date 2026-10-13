@@ -23,7 +23,7 @@ import tempfile
 import traceback
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, colorchooser
 
 try:
     import pymupdf as fitz
@@ -31,6 +31,8 @@ except ImportError:  # compatibilidade com versoes antigas do PyMuPDF
     import fitz
 
 from PIL import Image, ImageTk
+
+import acabamento as ac
 
 
 APP_NOME = "Editor de PDF"
@@ -176,6 +178,14 @@ def cor_para_hex(rgb):
     return "#%02x%02x%02x" % (r, g, b)
 
 
+def hex_para_rgb(texto):
+    texto = texto.lstrip("#")
+    return tuple(int(texto[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+
+
+TIPOS_IMAGEM = [("Imagens", " ".join("*" + e for e in ac.EXTENSOES_IMAGEM))]
+
+
 # --------------------------------------------------------------------------
 # Aplicacao
 # --------------------------------------------------------------------------
@@ -205,8 +215,8 @@ class EditorPDF(tk.Tk):
         self._atualizar_titulo()
         self.protocol("WM_DELETE_WINDOW", self.ao_fechar)
 
-        # Se o programa foi aberto arrastando um PDF sobre o executavel.
-        if len(sys.argv) > 1 and sys.argv[1].lower().endswith(".pdf"):
+        # Se o programa foi aberto arrastando um PDF (ou imagem) sobre o executavel.
+        if len(sys.argv) > 1 and sys.argv[1].lower().endswith((".pdf",) + ac.EXTENSOES_IMAGEM):
             self.after(200, lambda: self.abrir(sys.argv[1]))
 
     # ---------------------------------------------------------------- UI --
@@ -216,6 +226,41 @@ class EditorPDF(tk.Tk):
             estilo.theme_use("vista")
         except tk.TclError:
             pass
+
+        # ---- menus
+        menus = tk.Menu(self)
+        arquivo = tk.Menu(menus, tearoff=False)
+        arquivo.add_command(label="Abrir PDF...", accelerator="Ctrl+O", command=self.abrir)
+        arquivo.add_command(label="Criar PDF a partir de imagens...", command=self.abrir_imagens)
+        arquivo.add_separator()
+        arquivo.add_command(label="Salvar", accelerator="Ctrl+S", command=self.salvar)
+        arquivo.add_command(label="Salvar como...", command=self.salvar_como)
+        arquivo.add_command(label="Salvar copia protegida com senha...",
+                            command=self.salvar_protegido)
+        arquivo.add_command(label="Exportar paginas como imagem...",
+                            command=self.exportar_imagens)
+        arquivo.add_separator()
+        arquivo.add_command(label="Sair", command=self.ao_fechar)
+        menus.add_cascade(label="Arquivo", menu=arquivo)
+
+        editar = tk.Menu(menus, tearoff=False)
+        editar.add_command(label="Desfazer", accelerator="Ctrl+Z", command=self.desfazer)
+        editar.add_command(label="Localizar e substituir...", accelerator="Ctrl+H",
+                           command=self.localizar_substituir)
+        menus.add_cascade(label="Editar", menu=editar)
+
+        documento = tk.Menu(menus, tearoff=False)
+        documento.add_command(label="Numerar paginas...", command=self.numerar_paginas)
+        documento.add_command(label="Carimbo / marca d'agua...", command=self.carimbar)
+        documento.add_command(label="Papel timbrado (fundo)...", command=self.papel_timbrado)
+        documento.add_separator()
+        documento.add_command(label="Inserir capa...", command=self.inserir_capa)
+        documento.add_command(label="Anexar arquivos ao final...", command=self.anexar_arquivos)
+        documento.add_separator()
+        documento.add_command(label="Propriedades (titulo, autor...)...",
+                              command=self.propriedades)
+        menus.add_cascade(label="Documento", menu=documento)
+        self.config(menu=menus)
 
         # ---- barra de ferramentas
         barra = ttk.Frame(self, padding=(8, 6))
@@ -331,29 +376,17 @@ class EditorPDF(tk.Tk):
         if caminho is None:
             caminho = filedialog.askopenfilename(
                 title="Abrir PDF",
-                filetypes=[("Arquivos PDF", "*.pdf"), ("Todos os arquivos", "*.*")])
+                filetypes=[("Arquivos PDF", "*.pdf")] + TIPOS_IMAGEM +
+                          [("Todos os arquivos", "*.*")])
         if not caminho:
             return
-        try:
-            doc = fitz.open(caminho)
-        except Exception as exc:
-            messagebox.showerror(APP_NOME, "Nao foi possivel abrir o arquivo:\n\n%s" % exc)
+        if caminho.lower().endswith(ac.EXTENSOES_IMAGEM):
+            self._abrir_imagens([caminho])
             return
-        if doc.needs_pass:
-            senha = SenhaDialog(self).resultado
-            if not senha or not doc.authenticate(senha):
-                messagebox.showerror(APP_NOME, "PDF protegido: senha invalida ou nao informada.")
-                doc.close()
-                return
-        if self.doc is not None:
-            self.doc.close()
-        self.doc = doc
-        self.caminho = caminho
-        self.pagina_atual = 0
-        self.pilha_undo.clear()
-        self.modificado = False
-        self.carregar_pagina()
-        self._atualizar_titulo()
+        doc = self._abrir_pdf(caminho)
+        if doc is None:
+            return
+        self._trocar_documento(doc, caminho, modificado=False)
         if sum(len(p.get_text().strip()) for p in self.doc) == 0:
             messagebox.showwarning(
                 APP_NOME,
@@ -361,6 +394,62 @@ class EditorPDF(tk.Tk):
                 "digitalizado, formado apenas por imagens).\n\n"
                 "Para edita-lo seria necessario reconhecimento optico de caracteres (OCR).")
         self.status("Aberto: %s (%d paginas)" % (caminho, self.doc.page_count))
+
+    def _abrir_pdf(self, caminho):
+        """Abre um PDF pedindo a senha, se precisar. Devolve None se nao der."""
+        try:
+            doc = fitz.open(caminho)
+        except Exception as exc:
+            messagebox.showerror(APP_NOME, "Nao foi possivel abrir o arquivo:\n\n%s" % exc)
+            return None
+        if doc.needs_pass:
+            senha = SenhaDialog(self).resultado
+            if not senha or not doc.authenticate(senha):
+                messagebox.showerror(APP_NOME, "PDF protegido: senha invalida ou nao informada.")
+                doc.close()
+                return None
+        return doc
+
+    def _abrir_como_pdf(self, caminho):
+        """PDF ou imagem, sempre devolvido como documento PDF (ou None)."""
+        if caminho.lower().endswith(ac.EXTENSOES_IMAGEM):
+            try:
+                return ac.imagens_para_pdf([caminho])
+            except Exception as exc:
+                messagebox.showerror(APP_NOME, "Nao foi possivel ler a imagem:\n\n%s" % exc)
+                return None
+        return self._abrir_pdf(caminho)
+
+    def _trocar_documento(self, doc, caminho, modificado):
+        if self.doc is not None:
+            self.doc.close()
+        self.doc = doc
+        self.caminho = caminho
+        self.pagina_atual = 0
+        self.pilha_undo.clear()
+        self.modificado = modificado
+        self.carregar_pagina()
+        self._atualizar_titulo()
+
+    def abrir_imagens(self):
+        if not self.confirmar_descartar():
+            return
+        caminhos = filedialog.askopenfilenames(
+            title="Escolha as imagens (uma pagina por imagem, na ordem escolhida)",
+            filetypes=TIPOS_IMAGEM + [("Todos os arquivos", "*.*")])
+        if caminhos:
+            self._abrir_imagens(list(caminhos))
+
+    def _abrir_imagens(self, caminhos):
+        try:
+            doc = ac.imagens_para_pdf(caminhos)
+        except Exception as exc:
+            messagebox.showerror(APP_NOME, "Nao foi possivel converter as imagens:\n\n%s" % exc)
+            return
+        # documento novo, ainda sem arquivo: "Salvar" vai pedir o nome
+        self._trocar_documento(doc, None, modificado=True)
+        self.status("PDF criado a partir de %d imagem(ns). Use 'Salvar como...' para gravar."
+                    % len(caminhos))
 
     def salvar(self):
         if self.doc is None:
@@ -848,6 +937,235 @@ class EditorPDF(tk.Tk):
                 self.pilha_undo.pop()
             messagebox.showinfo(APP_NOME, "Texto '%s' nao encontrado." % procurar)
 
+    # ----------------------------------------------- acabamento do documento --
+    # Acoes sobre o documento inteiro (ver acabamento.py). Todas podem ser
+    # desfeitas com Ctrl+Z, como as edicoes de texto.
+    def _precisa_documento(self):
+        if self.doc is None:
+            messagebox.showinfo(APP_NOME, "Abra um PDF primeiro.")
+            return False
+        return True
+
+    def _acabar(self, funcao, mensagem):
+        """Executa `funcao(doc)` guardando o desfazer; `mensagem` recebe o retorno."""
+        self.guardar_undo()
+        try:
+            resultado = funcao(self.doc)
+        except Exception as exc:
+            traceback.print_exc()
+            if self.pilha_undo:          # nada mudou: volta ao estado anterior
+                self.doc.close()
+                self.doc = fitz.open("pdf", self.pilha_undo.pop())
+                self.carregar_pagina()
+            messagebox.showerror(APP_NOME, "Nao foi possivel concluir:\n\n%s" % exc)
+            return
+        self.modificado = True
+        self.carregar_pagina()
+        self._atualizar_titulo()
+        self.status(mensagem(resultado) + " Ctrl+Z desfaz.")
+
+    def numerar_paginas(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Numerar paginas", [
+            ("formato", "Texto", "texto", "<Pagina> de <Paginas>"),
+            ("posicao", "Posicao", "lista", "inferior-centro",
+             [(p, p.replace("-", " ")) for p in ac.POSICOES]),
+            ("inicio", "Comecar na pagina", "inteiro", 1),
+            ("numero", "Primeiro numero", "inteiro", 1),
+            ("tamanho", "Tamanho da letra", "real", 10),
+            ("cor", "Cor", "cor", "#000000"),
+            ("romanos", "Numeros romanos (i, ii, iii...)", "marcar", False),
+            ("alternar", "Espelhar nas paginas pares (frente e verso)", "marcar", False),
+        ], dica=TEXTO_MARCADORES).resultado
+        if not valores:
+            return
+        self._acabar(lambda doc: ac.numerar_paginas(
+            doc, formato=valores["formato"], posicao=valores["posicao"],
+            a_partir_da_pagina=valores["inicio"], primeiro_numero=valores["numero"],
+            romanos=valores["romanos"], alternar=valores["alternar"],
+            tamanho=valores["tamanho"], cor=hex_para_rgb(valores["cor"]),
+            caminho=self.caminho),
+            lambda n: "%d pagina(s) numerada(s)." % n)
+
+    def carimbar(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Carimbo / marca d'agua", [
+            ("texto", "Texto", "texto", "CONFIDENCIAL"),
+            ("tamanho", "Tamanho (0 = ajustar a pagina)", "real", 0),
+            ("cor", "Cor", "cor", "#bf1a1a"),
+            ("opacidade", "Opacidade (%)", "inteiro", 35),
+            ("contorno", "Somente o contorno das letras", "marcar", False),
+            ("onde", "Paginas", "lista", "todas",
+             [("todas", "todas"), ("atual", "so a pagina atual")]),
+        ], dica=TEXTO_MARCADORES).resultado
+        if not valores or not valores["texto"].strip():
+            return
+        paginas = [self.pagina_atual] if valores["onde"] == "atual" else None
+        self._acabar(lambda doc: ac.carimbar(
+            doc, valores["texto"], tamanho=valores["tamanho"] or None,
+            cor=hex_para_rgb(valores["cor"]),
+            opacidade=max(5, min(100, valores["opacidade"])) / 100.0,
+            contorno=valores["contorno"], paginas=paginas, caminho=self.caminho),
+            lambda n: "Carimbo aplicado em %d pagina(s)." % n)
+
+    def papel_timbrado(self):
+        if not self._precisa_documento():
+            return
+        caminho = filedialog.askopenfilename(
+            title="PDF do papel timbrado (fundo)",
+            filetypes=[("Arquivos PDF", "*.pdf")] + TIPOS_IMAGEM)
+        if not caminho:
+            return
+        fundo = self._abrir_como_pdf(caminho)
+        if fundo is None:
+            return
+        valores = FormularioDialog(self, "Papel timbrado", [
+            ("repeticao", "Quando o fundo tiver menos paginas", "lista", "ultima",
+             [("ultima", "repetir a ultima pagina do fundo"),
+              ("todas", "recomecar do inicio do fundo"),
+              ("nenhuma", "deixar as demais sem fundo")]),
+            ("inicio", "Comecar na pagina", "inteiro", 1),
+            ("por_cima", "Colocar por cima do conteudo (em vez de atras)", "marcar", False),
+        ], dica="O fundo tem %d pagina(s)." % fundo.page_count).resultado
+        if valores:
+            self._acabar(lambda doc: ac.aplicar_fundo(
+                doc, fundo, repeticao=valores["repeticao"], por_cima=valores["por_cima"],
+                a_partir_da_pagina=valores["inicio"]),
+                lambda n: "Papel timbrado aplicado em %d pagina(s)." % n)
+        fundo.close()
+
+    def _juntar(self, titulo, varios, funcao, mensagem):
+        if not self._precisa_documento():
+            return
+        tipos = [("PDF e imagens", "*.pdf " + TIPOS_IMAGEM[0][1])]
+        if varios:
+            caminhos = list(filedialog.askopenfilenames(title=titulo, filetypes=tipos))
+        else:
+            caminho = filedialog.askopenfilename(title=titulo, filetypes=tipos)
+            caminhos = [caminho] if caminho else []
+        outros = []
+        for caminho in caminhos:
+            outro = self._abrir_como_pdf(caminho)
+            if outro is None:
+                break
+            outros.append(outro)
+        else:
+            if outros:
+                def juntar_todos(doc):
+                    return sum(funcao(doc, outro) for outro in outros)
+                self._acabar(juntar_todos, mensagem)
+        for outro in outros:
+            outro.close()
+
+    def inserir_capa(self):
+        self._juntar("Escolha a capa (PDF ou imagem)", False, ac.inserir_capa,
+                     lambda n: "Capa inserida (%d pagina(s))." % n)
+
+    def anexar_arquivos(self):
+        self._juntar("Escolha os arquivos a anexar (PDF ou imagens)", True,
+                     ac.anexar_ao_final,
+                     lambda n: "%d pagina(s) anexada(s) ao final." % n)
+
+    def propriedades(self):
+        if not self._precisa_documento():
+            return
+        meta = self.doc.metadata or {}
+        valores = FormularioDialog(self, "Propriedades do documento", [
+            ("titulo", "Titulo", "texto", meta.get("title", "")),
+            ("autor", "Autor", "texto", meta.get("author", "")),
+            ("assunto", "Assunto", "texto", meta.get("subject", "")),
+            ("chaves", "Palavras-chave", "texto", meta.get("keywords", "")),
+        ], dica="Aparecem nas propriedades do arquivo e na busca do sistema.\n"
+                + TEXTO_MARCADORES).resultado
+        if valores:
+            self._acabar(lambda doc: ac.definir_propriedades(
+                doc, titulo=valores["titulo"], autor=valores["autor"],
+                assunto=valores["assunto"], palavras_chave=valores["chaves"],
+                caminho=self.caminho),
+                lambda _: "Propriedades atualizadas.")
+
+    def salvar_protegido(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Salvar copia protegida", [
+            ("abrir", "Senha para abrir (opcional)", "senha", ""),
+            ("dono", "Senha do dono (libera tudo)", "senha", ""),
+            ("dono2", "Repita a senha do dono", "senha", ""),
+            ("imprimir", "Permitir imprimir", "marcar", True),
+            ("copiar", "Permitir copiar texto e imagens", "marcar", False),
+            ("alterar", "Permitir alterar o documento", "marcar", False),
+            ("anotar", "Permitir comentarios e anotacoes", "marcar", False),
+        ], dica="Criptografia AES de 256 bits. As permissoes valem para quem\n"
+                "abre o arquivo sem a senha do dono.").resultado
+        if not valores:
+            return
+        if not valores["dono"]:
+            messagebox.showerror(APP_NOME, "Informe a senha do dono.")
+            return
+        if valores["dono"] != valores["dono2"]:
+            messagebox.showerror(APP_NOME, "As duas senhas do dono nao conferem.")
+            return
+        raiz, _ = os.path.splitext(os.path.basename(self.caminho or "documento.pdf"))
+        destino = filedialog.asksaveasfilename(
+            title="Salvar copia protegida", defaultextension=".pdf",
+            initialfile=raiz + "_protegido.pdf", filetypes=[("Arquivos PDF", "*.pdf")])
+        if not destino:
+            return
+        if self.caminho and os.path.abspath(destino) == os.path.abspath(self.caminho):
+            messagebox.showerror(APP_NOME, "Escolha outro nome: a copia protegida nao pode "
+                                           "substituir o arquivo que esta aberto.")
+            return
+        opcoes = ac.opcoes_de_protecao(
+            valores["dono"], valores["abrir"], imprimir=valores["imprimir"],
+            copiar=valores["copiar"], alterar=valores["alterar"], anotar=valores["anotar"])
+        try:
+            # a copia vai protegida; o documento aberto continua o mesmo
+            copia = fitz.open("pdf", self.doc.tobytes())
+            try:
+                copia.subset_fonts()
+            except Exception:
+                pass
+            copia.save(destino, garbage=4, deflate=True, **opcoes)
+            copia.close()
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror(APP_NOME, "Erro ao salvar:\n\n%s" % exc)
+            return
+        self.status("Copia protegida salva em: %s" % destino)
+        messagebox.showinfo(APP_NOME, "Copia protegida salva em:\n\n%s" % destino)
+
+    def exportar_imagens(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Exportar paginas como imagem", [
+            ("formato", "Formato", "lista", "png",
+             [("png", "PNG (um arquivo por pagina)"), ("jpg", "JPEG (um arquivo por pagina)"),
+              ("tif", "TIFF (um arquivo com todas as paginas)")]),
+            ("dpi", "Resolucao (dpi)", "inteiro", 150),
+            ("onde", "Paginas", "lista", "todas",
+             [("todas", "todas"), ("atual", "so a pagina atual")]),
+        ]).resultado
+        if not valores:
+            return
+        pasta = filedialog.askdirectory(title="Pasta onde gravar as imagens")
+        if not pasta:
+            return
+        nome = os.path.splitext(os.path.basename(self.caminho or "documento.pdf"))[0]
+        paginas = [self.pagina_atual] if valores["onde"] == "atual" else None
+        self.status("Exportando...")
+        try:
+            criados = ac.exportar_imagens(self.doc, pasta, nome, formato=valores["formato"],
+                                          dpi=max(36, min(600, valores["dpi"])),
+                                          paginas=paginas)
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror(APP_NOME, "Erro ao exportar:\n\n%s" % exc)
+            return
+        self.status("%d imagem(ns) gravada(s) em %s" % (len(criados), pasta))
+        messagebox.showinfo(APP_NOME, "%d arquivo(s) gravado(s) em:\n\n%s" % (len(criados), pasta))
+
 
 # --------------------------------------------------------------------------
 # Caixas de dialogo auxiliares
@@ -904,6 +1222,104 @@ class SubstituirDialog(tk.Toplevel):
 
     def ok(self):
         self.resultado = (self.e1.get(), self.e2.get(), self.var_todas.get())
+        self.destroy()
+
+
+TEXTO_MARCADORES = ("Marcadores: <Pagina> <Paginas> <Titulo> <Autor> <Assunto>\n"
+                    "<Arquivo> <Data> <Hora>")
+
+
+class FormularioDialog(tk.Toplevel):
+    """Caixa de dialogo montada a partir de uma lista de campos.
+
+    Cada campo e (chave, rotulo, tipo, padrao) ou, para "lista",
+    (chave, rotulo, "lista", padrao, [(valor, texto), ...]). Tipos: texto,
+    senha, inteiro, real, lista, marcar e cor (guardada como "#rrggbb").
+    `resultado` fica com {chave: valor}, ou None se a pessoa cancelar.
+    """
+
+    def __init__(self, pai, titulo, campos, dica=None):
+        super().__init__(pai)
+        self.title(titulo)
+        self.resizable(False, False)
+        self.resultado = None
+        self.campos = campos
+        self.leitores = {}
+        corpo = ttk.Frame(self, padding=12)
+        corpo.pack(fill="both")
+        primeiro = None
+        for linha, campo in enumerate(campos):
+            chave, rotulo, tipo, padrao = campo[:4]
+            if tipo == "marcar":
+                var = tk.BooleanVar(value=bool(padrao))
+                ttk.Checkbutton(corpo, text=rotulo, variable=var).grid(
+                    row=linha, column=0, columnspan=2, sticky="w", pady=2)
+                self.leitores[chave] = var.get
+                continue
+            ttk.Label(corpo, text=rotulo + ":").grid(row=linha, column=0, sticky="w",
+                                                      padx=(0, 8), pady=3)
+            if tipo == "lista":
+                opcoes = campo[4]
+                textos = [t for _, t in opcoes]
+                var = tk.StringVar(value=dict(opcoes).get(padrao, textos[0]))
+                widget = ttk.Combobox(corpo, textvariable=var, values=textos,
+                                      state="readonly", width=36)
+                self.leitores[chave] = (lambda v=var, o=opcoes:
+                                        next(val for val, t in o if t == v.get()))
+            elif tipo == "cor":
+                var = tk.StringVar(value=padrao)
+                widget = tk.Button(corpo, width=6, bg=padrao, activebackground=padrao,
+                                   relief="groove")
+                widget.config(command=lambda v=var, b=widget: self._escolher_cor(v, b))
+                self.leitores[chave] = var.get
+                widget.grid(row=linha, column=1, sticky="w", pady=3)
+                continue
+            else:
+                var = tk.StringVar(value=str(padrao))
+                widget = ttk.Entry(corpo, textvariable=var, width=38,
+                                   show="*" if tipo == "senha" else "")
+                if tipo == "inteiro":
+                    self.leitores[chave] = lambda v=var, r=rotulo: self._numero(v, r, int)
+                elif tipo == "real":
+                    self.leitores[chave] = lambda v=var, r=rotulo: self._numero(v, r, float)
+                else:
+                    self.leitores[chave] = var.get
+            widget.grid(row=linha, column=1, sticky="we", pady=3)
+            primeiro = primeiro or widget
+        if dica:
+            ttk.Label(corpo, text=dica, foreground="#555", justify="left").grid(
+                row=len(campos), column=0, columnspan=2, sticky="w", pady=(8, 0))
+        quadro = ttk.Frame(self, padding=(12, 0, 12, 12))
+        quadro.pack(fill="x")
+        ttk.Button(quadro, text="OK", command=self.ok).pack(side="right", padx=4)
+        ttk.Button(quadro, text="Cancelar", command=self.destroy).pack(side="right")
+        self.bind("<Return>", lambda e: self.ok())
+        self.bind("<Escape>", lambda e: self.destroy())
+        if primeiro is not None:
+            primeiro.focus_set()
+        self.transient(pai)
+        self.grab_set()
+        pai.wait_window(self)
+
+    def _escolher_cor(self, var, botao):
+        escolhida = colorchooser.askcolor(color=var.get(), parent=self)[1]
+        if escolhida:
+            var.set(escolhida)
+            botao.config(bg=escolhida, activebackground=escolhida)
+
+    @staticmethod
+    def _numero(var, rotulo, tipo):
+        try:
+            return tipo(var.get().replace(",", "."))
+        except ValueError:
+            raise ValueError("'%s' precisa ser um numero." % rotulo)
+
+    def ok(self):
+        try:
+            self.resultado = {chave: ler() for chave, ler in self.leitores.items()}
+        except ValueError as exc:
+            messagebox.showerror(APP_NOME, str(exc), parent=self)
+            return
         self.destroy()
 
 

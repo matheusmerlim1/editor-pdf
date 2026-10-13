@@ -228,6 +228,19 @@ dialog input[type="text"] {
 }
 dialog .marcar { display: flex; align-items: center; gap: .5rem; margin-top: .9rem; font-size: .84rem; }
 dialog .rodape-dialogo { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.2rem; }
+dialog select, dialog input[type="number"] {
+  width: 100%; padding: .4rem .5rem; margin-top: .25rem; font-family: var(--mono); font-size: .84rem;
+  border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--papel); color: var(--tinta);
+}
+#dialogoAcabamento { max-width: 30rem; width: calc(100vw - 32px); }
+#dialogoAcabamento fieldset {
+  border: 1px solid var(--linha); border-radius: 8px; padding: .3rem .9rem .9rem; margin: 0 0 .8rem;
+}
+#dialogoAcabamento legend { padding: 0 .3rem; font-family: var(--display); font-weight: 600; font-size: .84rem; }
+#dialogoAcabamento legend .marcar { margin: 0; font-family: var(--display); font-weight: 600; color: var(--tinta); }
+#dialogoAcabamento .lado-a-lado { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .8rem; }
+#dialogoAcabamento .dica { margin: .2rem 0 0; }
+#acabamento[aria-pressed="true"] { background: var(--azul-fraco); border-color: var(--azul); color: var(--azul); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -254,6 +267,8 @@ dialog .rodape-dialogo { display: flex; justify-content: flex-end; gap: .5rem; m
   <span class="separador"></span>
   <button type="button" id="desfazer" data-precisa-pdf disabled>Desfazer</button>
   <button type="button" id="substituir" data-precisa-pdf disabled>Localizar e substituir</button>
+  <button type="button" id="acabamento" data-precisa-pdf disabled aria-pressed="false"
+          title="Numerar páginas, carimbar e definir título e autor">Acabamento</button>
   <span class="separador"></span>
   <span class="paginacao">
     <button type="button" id="anterior" data-precisa-pdf disabled>&lt;</button>
@@ -367,11 +382,62 @@ dialog .rodape-dialogo { display: flex; justify-content: flex-end; gap: .5rem; m
   </form>
 </dialog>
 
+<dialog id="dialogoAcabamento">
+  <h2>Acabamento do documento</h2>
+  <form method="dialog">
+    <fieldset>
+      <legend><label class="marcar"><input type="checkbox" id="usarNumeracao"> Numerar páginas</label></legend>
+      <label>Texto<input type="text" id="numFormato" value="<Pagina> de <Paginas>" autocomplete="off"></label>
+      <div class="lado-a-lado">
+        <label>Posição
+          <select id="numPosicao">
+            <option value="inferior-centro">embaixo, no centro</option>
+            <option value="inferior-direita">embaixo, à direita</option>
+            <option value="inferior-esquerda">embaixo, à esquerda</option>
+            <option value="superior-centro">em cima, no centro</option>
+            <option value="superior-direita">em cima, à direita</option>
+            <option value="superior-esquerda">em cima, à esquerda</option>
+          </select>
+        </label>
+        <label>Começar na página<input type="number" id="numInicio" value="1" min="1"></label>
+      </div>
+      <label class="marcar"><input type="checkbox" id="numAlternar"> Espelhar nas páginas pares (frente e verso)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend><label class="marcar"><input type="checkbox" id="usarCarimbo"> Carimbo na diagonal</label></legend>
+      <div class="lado-a-lado">
+        <label>Texto<input type="text" id="carimboTexto" value="CONFIDENCIAL" autocomplete="off"></label>
+        <label>Opacidade (%)<input type="number" id="carimboOpacidade" value="35" min="5" max="100"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Propriedades do arquivo</legend>
+      <label>Título<input type="text" id="propTitulo" autocomplete="off" placeholder="deixe em branco para manter"></label>
+      <div class="lado-a-lado">
+        <label>Autor<input type="text" id="propAutor" autocomplete="off"></label>
+        <label>Assunto<input type="text" id="propAssunto" autocomplete="off"></label>
+      </div>
+    </fieldset>
+
+    <p class="dica">
+      Marcadores: &lt;Pagina&gt; &lt;Paginas&gt; &lt;Titulo&gt; &lt;Autor&gt; &lt;Arquivo&gt;
+      &lt;Data&gt; &lt;Hora&gt;. O acabamento é aplicado ao baixar o PDF. Papel timbrado,
+      capa, anexos, senha e exportação como imagem estão no programa de mesa.
+    </p>
+    <div class="rodape-dialogo">
+      <button type="button" id="cancelarAcabamento">Cancelar</button>
+      <button type="submit" id="confirmarAcabamento" class="destaque">Aplicar ao baixar</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
-<script src="exemplo.js?v=2026-09-02f"></script>
-<script src="editor.js?v=2026-09-02f"></script>
+<script src="exemplo.js?v=2026-10-12a"></script>
+<script src="editor.js?v=2026-10-12a"></script>
 <!-- === Botao de volta ao portfolio - cole antes de </body> === -->
 <a id="mr-portfolio-btn" href="https://matheusmerlim1.github.io/" target="_blank" rel="noopener"
    aria-label="Abrir o portf&oacute;lio de Matheus Raposo" title="Ver todos os meus projetos">
