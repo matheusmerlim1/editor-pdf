@@ -337,14 +337,44 @@ def opcoes_de_protecao(senha_dono, senha_abrir="", imprimir=True, copiar=False,
 EXTENSOES_IMAGEM = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp")
 
 
-def imagens_para_pdf(caminhos):
+TAMANHOS_PAGINA = {           # largura x altura em pontos, em pe
+    "auto": None,             # a pagina segue o tamanho da imagem
+    "a4": (595.0, 842.0),
+    "carta": (612.0, 792.0),
+    "oficio": (612.0, 1008.0),
+}
+ORIENTACOES = ("auto", "retrato", "paisagem")
+
+
+def imagens_para_pdf(caminhos, tamanho="auto", orientacao="auto", margem=0.0):
     """Monta um PDF novo com uma pagina por imagem (TIFFs de varias paginas
-    viram varias paginas). O tamanho da pagina segue a resolucao da imagem."""
+    viram varias paginas).
+
+    Com tamanho "auto" a pagina segue a resolucao da imagem. Com um tamanho
+    de papel (A4, carta, oficio), a imagem e centralizada na folha sem
+    distorcer, deixando `margem` pontos livres em volta; a orientacao "auto"
+    deita a folha para imagens mais largas que altas, como no PDFCreator.
+    """
+    if tamanho not in TAMANHOS_PAGINA:
+        raise ValueError("tamanho de pagina desconhecido: %r" % tamanho)
+    if orientacao not in ORIENTACOES:
+        raise ValueError("orientacao desconhecida: %r" % orientacao)
     doc = fitz.open()
     for caminho in caminhos:
         with fitz.open(caminho) as imagem:
             with fitz.open("pdf", imagem.convert_to_pdf()) as convertido:
-                doc.insert_pdf(convertido)
+                if TAMANHOS_PAGINA[tamanho] is None:
+                    doc.insert_pdf(convertido)
+                    continue
+                for origem in convertido:
+                    largura, altura = TAMANHOS_PAGINA[tamanho]
+                    deitada = (orientacao == "paisagem" or
+                               (orientacao == "auto" and origem.rect.width > origem.rect.height))
+                    if deitada:
+                        largura, altura = altura, largura
+                    folha = doc.new_page(width=largura, height=altura)
+                    area = fitz.Rect(margem, margem, largura - margem, altura - margem)
+                    folha.show_pdf_page(area, convertido, origem.number, keep_proportion=True)
     return doc
 
 
@@ -386,3 +416,114 @@ def exportar_imagens(doc, pasta, nome_base, formato="png", dpi=150, paginas=None
             pix.save(destino)
         criados.append(destino)
     return criados
+
+
+# --------------------------------------------------------------------------
+# Tamanho do arquivo e cores
+# --------------------------------------------------------------------------
+# Como as opcoes de compressao do PDFCreator: do "maxima" (arquivo menor,
+# imagens mais leves) ao "minima" (quase sem perda), alem do "sem perda",
+# que so recomprime o que da sem tocar na qualidade.
+NIVEIS_COMPRESSAO = {         # (resolucao alvo em dpi, qualidade JPEG)
+    "maxima": (72, 35),
+    "alta": (110, 55),
+    "media": (150, 70),
+    "baixa": (200, 82),
+    "minima": (300, 92),
+    "sem_perda": None,
+}
+
+
+def otimizar_tamanho(doc, nivel="media"):
+    """Reduz o peso das imagens do documento.
+
+    Imagens com resolucao acima do alvo sao reamostradas para ele e
+    regravadas em JPEG com a qualidade do nivel. Texto e desenhos vetoriais
+    nao mudam. A limpeza de objetos repetidos e sem uso acontece ao salvar.
+    Devolve (tamanho antes, tamanho depois) em bytes, ja com essa limpeza.
+    """
+    if nivel not in NIVEIS_COMPRESSAO:
+        raise ValueError("nivel de compressao desconhecido: %r" % nivel)
+    antes = len(doc.tobytes(garbage=4, deflate=True))
+    if NIVEIS_COMPRESSAO[nivel]:
+        dpi, qualidade = NIVEIS_COMPRESSAO[nivel]
+        doc.rewrite_images(dpi_threshold=int(dpi * 1.1), dpi_target=dpi, quality=qualidade,
+                           lossy=True, lossless=True, bitonal=False)
+    try:
+        doc.subset_fonts()
+    except Exception:
+        pass
+    depois = len(doc.tobytes(garbage=4, deflate=True))
+    return antes, depois
+
+
+MODELOS_COR = {"cinza": 1, "cmyk": 4}
+
+
+def converter_cores(doc, modelo="cinza"):
+    """Converte texto, desenhos e imagens para tons de cinza (ou para CMYK,
+    o modelo das graficas) - o "modelo de cor" do PDFCreator."""
+    if modelo not in MODELOS_COR:
+        raise ValueError("modelo de cor desconhecido: %r" % modelo)
+    doc.recolor(MODELOS_COR[modelo])
+
+
+# --------------------------------------------------------------------------
+# Como o leitor abre o arquivo
+# --------------------------------------------------------------------------
+LAYOUTS = {                   # nome no editor -> /PageLayout do PDF
+    "padrao": None,
+    "uma_pagina": "SinglePage",
+    "continua": "OneColumn",
+    "duas_colunas_impar_esquerda": "TwoColumnLeft",
+    "duas_colunas_impar_direita": "TwoColumnRight",
+    "duas_paginas_impar_esquerda": "TwoPageLeft",
+    "duas_paginas_impar_direita": "TwoPageRight",
+}
+PAINEIS = {                   # nome no editor -> /PageMode do PDF
+    "padrao": None,
+    "nenhum": "UseNone",
+    "marcadores": "UseOutlines",
+    "miniaturas": "UseThumbs",
+    "tela_cheia": "FullScreen",
+    "camadas": "UseOC",
+    "anexos": "UseAttachments",
+}
+
+
+def definir_visualizacao(doc, layout="padrao", painel="padrao", pagina_inicial=1):
+    """Diz ao leitor de PDF como abrir o documento: disposicao das paginas,
+    painel lateral (marcadores, miniaturas...) ou tela cheia, e em que pagina
+    comecar. "padrao" deixa a escolha para o leitor."""
+    if layout not in LAYOUTS:
+        raise ValueError("layout desconhecido: %r" % layout)
+    if painel not in PAINEIS:
+        raise ValueError("painel desconhecido: %r" % painel)
+    catalogo = doc.pdf_catalog()
+    if LAYOUTS[layout]:
+        doc.set_pagelayout(LAYOUTS[layout])
+    else:
+        doc.xref_set_key(catalogo, "PageLayout", "null")
+    if PAINEIS[painel]:
+        doc.set_pagemode(PAINEIS[painel])
+    else:
+        doc.xref_set_key(catalogo, "PageMode", "null")
+    indice = max(1, min(int(pagina_inicial), doc.page_count)) - 1
+    if indice:
+        doc.xref_set_key(catalogo, "OpenAction", "[%d 0 R /Fit]" % doc.page_xref(indice))
+    else:
+        doc.xref_set_key(catalogo, "OpenAction", "null")
+
+
+# --------------------------------------------------------------------------
+# Texto puro
+# --------------------------------------------------------------------------
+def exportar_texto(doc, destino):
+    """Grava todo o texto do documento num arquivo .txt (UTF-8), na ordem de
+    leitura, com uma quebra de pagina (form feed) entre as paginas - a saida
+    "TXT" do PDFCreator. Devolve quantos caracteres foram gravados."""
+    partes = [pagina.get_text("text", sort=True) for pagina in doc]
+    texto = "\f".join(partes)
+    with open(destino, "w", encoding="utf-8", newline="\n") as arquivo:
+        arquivo.write(texto)
+    return len(texto)

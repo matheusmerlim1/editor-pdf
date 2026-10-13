@@ -66,11 +66,17 @@ escrito sobre o PyMuPDF e a pdf-lib; do PDFCreator vieram a lista de recursos e 
 | **Numerar páginas** | ✓ | ✓ | Texto livre (`<Pagina> de <Paginas>`), seis posições, começar numa página qualquer (a capa não conta), espelhar nas páginas pares para impressão frente e verso. A versão de mesa também faz algarismos romanos, tamanho e cor. |
 | **Carimbo** | ✓ | ✓ | Texto semitransparente na diagonal da página ("CONFIDENCIAL", "RASCUNHO"), com o tamanho ajustado à página. Na versão de mesa também dá para escolher cor, tamanho, letra só com contorno e carimbar só a página atual. |
 | **Propriedades** | ✓ | ✓ | Título, autor, assunto e palavras-chave do arquivo. |
-| **Papel timbrado** | | ✓ | Põe as páginas de outro PDF (ou de uma imagem) atrás do conteúdo. Se o fundo tiver menos páginas, dá para repetir a última (timbrado na 1ª página + papel de continuação), recomeçar do início ou parar. |
-| **Capa e anexos** | | ✓ | Insere uma capa na frente e junta outros PDFs ou imagens no final. |
+| **Papel timbrado** | ✓ | ✓ | Põe as páginas de outro PDF (na versão de mesa, também de uma imagem) atrás do conteúdo. Se o fundo tiver menos páginas, dá para repetir a última (timbrado na 1ª página + papel de continuação), recomeçar do início ou parar. |
+| **Capa e anexos** | ✓ | ✓ | Insere uma capa na frente e junta outros PDFs ou imagens no final (online: PNG e JPEG, centralizados numa folha A4). |
+| **Como o leitor abre** | ✓ | ✓ | Disposição das páginas (uma por vez, contínua, duas colunas, duas páginas como livro), painel lateral (marcadores, miniaturas) ou tela cheia, e — na versão de mesa — em que página abrir. |
 | **Cópia protegida** | | ✓ | Grava uma cópia com criptografia AES-256, senha para abrir (opcional) e permissões de imprimir, copiar, alterar e anotar. |
-| **Imagens → PDF** | | ✓ | Cria um PDF com uma página por imagem (PNG, JPEG, TIFF, BMP...). Também dá para abrir uma imagem direto ou arrastá-la sobre o `.exe`. |
-| **PDF → imagens** | | ✓ | Exporta as páginas em PNG ou JPEG (um arquivo por página) ou num TIFF único com todas elas, na resolução escolhida. |
+| **Imagens → PDF** | | ✓ | Cria um PDF com uma página por imagem (PNG, JPEG, TIFF, BMP...), no tamanho da imagem ou numa folha A4, Carta ou Ofício, com orientação e margem. Também dá para abrir uma imagem direto ou arrastá-la sobre o `.exe`. |
+| **PDF → imagens** | ✓ | ✓ | Exporta as páginas em PNG ou JPEG (um arquivo por página) ou num TIFF único com todas elas, na resolução escolhida. Online: a página atual em PNG. |
+| **PDF → texto** | ✓ | ✓ | Grava todo o texto num `.txt`, com uma quebra de página entre as páginas. |
+| **Reduzir tamanho** | | ✓ | Recomprime as imagens em cinco níveis (de 72 a 300 dpi) ou sem perda, e remove objetos repetidos. Texto e desenhos não mudam. |
+| **Tons de cinza / CMYK** | | ✓ | Converte texto, desenhos e imagens de todas as páginas. |
+| **Imprimir e abrir no leitor** | | ✓ | Manda o documento, já com as alterações, para o leitor de PDF padrão do Windows. |
+| **Lembrar as opções** | | ✓ | Cada formulário abre com as últimas escolhas feitas nele (senhas nunca são guardadas), como os perfis do PDFCreator. |
 
 Os textos de acabamento aceitam **marcadores**, trocados na hora de aplicar:
 `<Pagina>` `<Paginas>` `<Titulo>` `<Autor>` `<Assunto>` `<Arquivo>` `<Data>` `<Hora>`.
@@ -78,7 +84,12 @@ Exemplo: um carimbo `Cópia de <Autor> - <Data>`.
 
 No programa de mesa esses recursos ficam no menu **Documento** (e em **Arquivo**, para a cópia protegida,
 as imagens e a exportação). Todos podem ser desfeitos com `Ctrl+Z`. Na versão online, o botão **Acabamento**
-guarda as escolhas, que são aplicadas quando o PDF é baixado.
+guarda as escolhas, que são aplicadas quando o PDF é baixado, e o botão **Exportar** baixa a página em PNG
+ou o texto.
+
+Ficaram de fora recursos do PDFCreator que dependem de algo que este projeto não tem: **PDF/A e PDF/X**
+(exigem o Ghostscript), **assinatura digital** (exige um certificado e outra biblioteca de criptografia) e
+o envio por **e-mail, FTP, Dropbox ou OneDrive** (serviços externos).
 
 ## Como usar
 

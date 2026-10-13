@@ -221,6 +221,67 @@ def main():
     quadros = Image.open(tif[0]).n_frames if tif else 0
     conferir(len(tif) == 1 and quadros == 3, "TIFF unico com 3 paginas (obtidas: %d)" % quadros)
 
+    print("\nImagens em folha de tamanho fixo:")
+    largo = os.path.join(pasta, "largo.png")
+    Image.new("RGB", (900, 300), (10, 120, 60)).save(largo)
+    a4 = ac.imagens_para_pdf([largo, caminhos[1]], tamanho="a4", margem=20)
+    conferir([tuple(round(v) for v in p.rect[2:]) for p in a4] == [(842, 595), (595, 842)],
+             "folha A4 deitada para imagem larga e em pe para imagem alta")
+    caixa = fitz.Rect(a4[0].get_image_info()[0]["bbox"])
+    conferir(abs(caixa.width - 802) < 1 and abs(caixa.height / caixa.width - 1 / 3) < 0.01,
+             "imagem ocupa a largura util sem distorcer")
+    retrato = ac.imagens_para_pdf([largo], tamanho="carta", orientacao="retrato")
+    conferir(tuple(round(v) for v in retrato[0].rect[2:]) == (612, 792), "orientacao forcada")
+
+    print("\nOtimizar tamanho:")
+    import random
+    random.seed(1)
+    ruido = Image.frombytes("RGB", (1600, 1600), bytes(random.getrandbits(8) for _ in range(1600 * 1600 * 3)))
+    pesada = os.path.join(pasta, "pesada.png")
+    ruido.save(pesada)
+    doc = documento(1)
+    doc[0].insert_image(fitz.Rect(72, 150, 272, 350), filename=pesada)   # ~576 dpi
+    antes, depois = ac.otimizar_tamanho(doc, "media")
+    conferir(depois < antes / 4, "arquivo encolheu: %d -> %d KB" % (antes // 1024, depois // 1024))
+    info = doc[0].get_image_info()[0]
+    # o MuPDF reduz por fatores de 2, entao o resultado fica perto do alvo, nao exato
+    conferir(info["width"] < 1600, "imagem reamostrada (1600 -> %d px)" % info["width"])
+    conferir("Conteudo da pagina 1" in doc[0].get_text(), "texto intacto")
+
+    print("\nConverter cores:")
+    doc = fitz.open()
+    p = doc.new_page()
+    p.insert_text((72, 100), "vermelho", color=(1, 0, 0), fontsize=14)
+    p.insert_image(fitz.Rect(72, 150, 172, 200), filename=caminhos[0])
+    ac.converter_cores(doc, "cinza")
+    span = doc[0].get_text("dict")["blocks"][0]["lines"][0]["spans"][0]
+    r, g, b = fitz.sRGB_to_pdf(span["color"])
+    conferir(abs(r - g) < 0.01 and abs(g - b) < 0.01, "texto vermelho virou cinza")
+    pix = fitz.Pixmap(doc, doc[0].get_images()[0][0])
+    conferir(pix.n - pix.alpha == 1, "imagem virou tons de cinza")
+
+    print("\nVisualizacao ao abrir:")
+    doc = documento(3)
+    ac.definir_visualizacao(doc, layout="duas_paginas_impar_direita", painel="miniaturas",
+                            pagina_inicial=2)
+    catalogo = doc.pdf_catalog()
+    conferir(doc.xref_get_key(catalogo, "PageLayout")[1] == "/TwoPageRight", "layout gravado")
+    conferir(doc.xref_get_key(catalogo, "PageMode")[1] == "/UseThumbs", "painel gravado")
+    conferir(doc.xref_get_key(catalogo, "OpenAction")[1].startswith("[%d 0 R" % doc.page_xref(1)),
+             "abre na pagina 2")
+    ac.definir_visualizacao(doc)
+    conferir(doc.xref_get_key(catalogo, "PageLayout")[0] == "null" and
+             doc.xref_get_key(catalogo, "OpenAction")[0] == "null", "padrao limpa as escolhas")
+
+    print("\nExportar texto:")
+    doc = documento(2)
+    destino = os.path.join(pasta, "texto.txt")
+    n = ac.exportar_texto(doc, destino)
+    conteudo = open(destino, encoding="utf-8").read()
+    conferir(n > 0 and "Conteudo da pagina 1" in conteudo and "Conteudo da pagina 2" in conteudo,
+             "texto das duas paginas gravado")
+    conferir(conteudo.count("\f") == 1, "quebra de pagina entre elas")
+
     print("\n" + "-" * 52)
     if falhas:
         print("%d verificacao(oes) falharam:" % len(falhas))

@@ -257,7 +257,12 @@ dialog select, dialog input[type="number"] {
   width: 100%; padding: .4rem .5rem; margin-top: .25rem; font-family: var(--mono); font-size: .84rem;
   border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--papel); color: var(--tinta);
 }
-#dialogoAcabamento { max-width: 30rem; width: calc(100vw - 32px); }
+#dialogoAcabamento { max-width: 30rem; width: calc(100vw - 32px); max-height: 92vh; overflow-y: auto; }
+dialog input[type="file"] { width: 100%; margin-top: .25rem; font-size: .8rem; color: var(--tinta-suave); }
+#dialogoExportar .opcao { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: .9rem; }
+#dialogoExportar .opcao p { margin: 0; font-size: .84rem; color: var(--tinta-suave); }
+#dialogoExportar .opcao span { display: flex; align-items: center; gap: .4rem; flex-shrink: 0; }
+#dialogoExportar select { width: auto; margin-top: 0; }
 #dialogoAcabamento fieldset {
   border: 1px solid var(--linha); border-radius: 8px; padding: .3rem .9rem .9rem; margin: 0 0 .8rem;
 }
@@ -293,7 +298,9 @@ dialog select, dialog input[type="number"] {
   <button type="button" id="desfazer" data-precisa-pdf disabled>Desfazer</button>
   <button type="button" id="substituir" data-precisa-pdf disabled>Localizar e substituir</button>
   <button type="button" id="acabamento" data-precisa-pdf disabled aria-pressed="false"
-          title="Numerar páginas, carimbar e definir título e autor">Acabamento</button>
+          title="Numerar, carimbar, capa, anexos, timbrado e propriedades">Acabamento</button>
+  <button type="button" id="exportar" data-precisa-pdf disabled
+          title="Baixar a página como imagem ou o texto do documento">Exportar</button>
   <span class="separador"></span>
   <span class="paginacao">
     <button type="button" id="anterior" data-precisa-pdf disabled>&lt;</button>
@@ -451,6 +458,29 @@ dialog select, dialog input[type="number"] {
   </form>
 </dialog>
 
+<dialog id="dialogoExportar">
+  <h2>Exportar</h2>
+  <div class="opcao">
+    <p>Página atual como imagem PNG</p>
+    <span>
+      <select id="exportarDpi" aria-label="Resolução">
+        <option value="96">96 dpi</option>
+        <option value="150" selected>150 dpi</option>
+        <option value="300">300 dpi</option>
+      </select>
+      <button type="button" id="exportarPng" class="destaque">PNG</button>
+    </span>
+  </div>
+  <div class="opcao">
+    <p>Todo o texto do documento</p>
+    <button type="button" id="exportarTexto" class="destaque">Texto (.txt)</button>
+  </div>
+  <p class="dica">Os dois saem do arquivo como ele será baixado, já com as alterações.</p>
+  <div class="rodape-dialogo">
+    <button type="button" id="fecharExportar">Fechar</button>
+  </div>
+</dialog>
+
 <dialog id="dialogoAcabamento">
   <h2>Acabamento do documento</h2>
   <form method="dialog">
@@ -482,6 +512,24 @@ dialog select, dialog input[type="number"] {
     </fieldset>
 
     <fieldset>
+      <legend><label class="marcar"><input type="checkbox" id="usarCapaAnexos"> Capa e anexos</label></legend>
+      <label>Capa (PDF ou imagem, entra na frente)<input type="file" id="arqCapa" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"></label>
+      <label>Anexos (PDFs ou imagens, entram no final)<input type="file" id="arqAnexos" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend><label class="marcar"><input type="checkbox" id="usarFundo"> Papel timbrado</label></legend>
+      <label>PDF do timbrado (vai atrás do conteúdo)<input type="file" id="arqFundo" accept=".pdf,application/pdf"></label>
+      <label>Quando o timbrado tiver menos páginas
+        <select id="fundoRepeticao">
+          <option value="ultima">repetir a última página dele</option>
+          <option value="todas">recomeçar do início</option>
+          <option value="nenhuma">deixar as demais sem fundo</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
       <legend>Propriedades do arquivo</legend>
       <label>Título<input type="text" id="propTitulo" autocomplete="off" placeholder="deixe em branco para manter"></label>
       <div class="lado-a-lado">
@@ -490,10 +538,35 @@ dialog select, dialog input[type="number"] {
       </div>
     </fieldset>
 
+    <fieldset>
+      <legend><label class="marcar"><input type="checkbox" id="usarVisualizacao"> Como o leitor abre o arquivo</label></legend>
+      <div class="lado-a-lado">
+        <label>Páginas
+          <select id="verLayout">
+            <option value="">como o leitor preferir</option>
+            <option value="SinglePage">uma por vez</option>
+            <option value="OneColumn">coluna contínua</option>
+            <option value="TwoColumnLeft">duas colunas</option>
+            <option value="TwoPageRight">duas, como livro</option>
+          </select>
+        </label>
+        <label>Painel
+          <select id="verPainel">
+            <option value="">como o leitor preferir</option>
+            <option value="UseNone">fechado</option>
+            <option value="UseOutlines">marcadores</option>
+            <option value="UseThumbs">miniaturas</option>
+            <option value="FullScreen">tela cheia</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
     <p class="dica">
       Marcadores: &lt;Pagina&gt; &lt;Paginas&gt; &lt;Titulo&gt; &lt;Autor&gt; &lt;Arquivo&gt;
-      &lt;Data&gt; &lt;Hora&gt;. O acabamento é aplicado ao baixar o PDF. Papel timbrado,
-      capa, anexos, senha e exportação como imagem estão no programa de mesa.
+      &lt;Data&gt; &lt;Hora&gt;. O acabamento é aplicado ao baixar o PDF, nesta ordem:
+      timbrado, capa e anexos, numeração (que conta a capa) e carimbo. Senha,
+      redução de tamanho e conversão para cinza estão no programa de mesa.
     </p>
     <div class="rodape-dialogo">
       <button type="button" id="cancelarAcabamento">Cancelar</button>
@@ -505,8 +578,8 @@ dialog select, dialog input[type="number"] {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
-<script src="exemplo.js?v=2026-10-12b"></script>
-<script src="editor.js?v=2026-10-12b"></script>
+<script src="exemplo.js?v=2026-10-13a"></script>
+<script src="editor.js?v=2026-10-13a"></script>
 <!-- === Botao de volta ao portfolio - cole antes de </body> === -->
 <a id="mr-portfolio-btn" href="https://matheusmerlim1.github.io/" target="_blank" rel="noopener"
    aria-label="Abrir o portf&oacute;lio de Matheus Raposo" title="Ver todos os meus projetos">

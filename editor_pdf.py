@@ -16,6 +16,7 @@ Como funciona a edicao:
 Requisitos: PyMuPDF, Pillow (tkinter ja acompanha o Python no Windows).
 """
 
+import json
 import os
 import re
 import sys
@@ -326,6 +327,10 @@ class EditorPDF(tk.Tk):
                             command=self.salvar_protegido)
         arquivo.add_command(label="Exportar paginas como imagem...",
                             command=self.exportar_imagens)
+        arquivo.add_command(label="Exportar texto (.txt)...", command=self.exportar_texto)
+        arquivo.add_separator()
+        arquivo.add_command(label="Abrir no leitor de PDF", command=self.abrir_no_leitor)
+        arquivo.add_command(label="Imprimir...", accelerator="Ctrl+P", command=self.imprimir)
         arquivo.add_separator()
         arquivo.add_command(label="Sair", command=self.ao_fechar)
         menus.add_cascade(label="Arquivo", menu=arquivo)
@@ -346,6 +351,12 @@ class EditorPDF(tk.Tk):
         documento.add_separator()
         documento.add_command(label="Propriedades (titulo, autor...)...",
                               command=self.propriedades)
+        documento.add_command(label="Como o leitor abre o arquivo...",
+                              command=self.visualizacao)
+        documento.add_separator()
+        documento.add_command(label="Reduzir tamanho do arquivo...", command=self.otimizar)
+        documento.add_command(label="Converter cores (cinza / CMYK)...",
+                              command=self.converter_cores)
         menus.add_cascade(label="Documento", menu=documento)
         self.config(menu=menus)
 
@@ -460,6 +471,7 @@ class EditorPDF(tk.Tk):
         self.bind("<Control-s>", lambda e: self.salvar())
         self.bind("<Control-z>", lambda e: self.desfazer())
         self.bind("<Control-h>", lambda e: self.localizar_substituir())
+        self.bind("<Control-p>", lambda e: self.imprimir())
         for tecla, dx, dy in (("Left", -1, 0), ("Right", 1, 0), ("Up", 0, -1), ("Down", 0, 1)):
             self.bind("<Alt-%s>" % tecla, lambda e, dx=dx, dy=dy: self.mover_selecao(
                 dx * PASSO_MOVER, dy * PASSO_MOVER))
@@ -548,12 +560,26 @@ class EditorPDF(tk.Tk):
         caminhos = filedialog.askopenfilenames(
             title="Escolha as imagens (uma pagina por imagem, na ordem escolhida)",
             filetypes=TIPOS_IMAGEM + [("Todos os arquivos", "*.*")])
-        if caminhos:
-            self._abrir_imagens(list(caminhos))
+        if not caminhos:
+            return
+        valores = FormularioDialog(self, "Criar PDF a partir de imagens", [
+            ("tamanho", "Tamanho da pagina", "lista", "auto",
+             [("auto", "o mesmo da imagem"), ("a4", "A4"), ("carta", "Carta"),
+              ("oficio", "Oficio")]),
+            ("orientacao", "Orientacao", "lista", "auto",
+             [("auto", "conforme a imagem"), ("retrato", "retrato (em pe)"),
+              ("paisagem", "paisagem (deitada)")]),
+            ("margem", "Margem (pt)", "real", 0),
+        ], dica="%d imagem(ns), uma por pagina, na ordem escolhida.\n"
+                "Num tamanho de papel, a imagem e centralizada sem distorcer."
+                % len(caminhos)).resultado
+        if valores:
+            self._abrir_imagens(list(caminhos), valores["tamanho"], valores["orientacao"],
+                                max(0.0, valores["margem"]))
 
-    def _abrir_imagens(self, caminhos):
+    def _abrir_imagens(self, caminhos, tamanho="auto", orientacao="auto", margem=0.0):
         try:
-            doc = ac.imagens_para_pdf(caminhos)
+            doc = ac.imagens_para_pdf(caminhos, tamanho, orientacao, margem)
         except Exception as exc:
             messagebox.showerror(APP_NOME, "Nao foi possivel converter as imagens:\n\n%s" % exc)
             return
@@ -1329,7 +1355,7 @@ class EditorPDF(tk.Tk):
             ("assunto", "Assunto", "texto", meta.get("subject", "")),
             ("chaves", "Palavras-chave", "texto", meta.get("keywords", "")),
         ], dica="Aparecem nas propriedades do arquivo e na busca do sistema.\n"
-                + TEXTO_MARCADORES).resultado
+                + TEXTO_MARCADORES, lembrar=False).resultado
         if valores:
             self._acabar(lambda doc: ac.definir_propriedades(
                 doc, titulo=valores["titulo"], autor=valores["autor"],
@@ -1349,7 +1375,7 @@ class EditorPDF(tk.Tk):
             ("alterar", "Permitir alterar o documento", "marcar", False),
             ("anotar", "Permitir comentarios e anotacoes", "marcar", False),
         ], dica="Criptografia AES de 256 bits. As permissoes valem para quem\n"
-                "abre o arquivo sem a senha do dono.").resultado
+                "abre o arquivo sem a senha do dono.", lembrar=False).resultado
         if not valores:
             return
         if not valores["dono"]:
@@ -1386,6 +1412,111 @@ class EditorPDF(tk.Tk):
             return
         self.status("Copia protegida salva em: %s" % destino)
         messagebox.showinfo(APP_NOME, "Copia protegida salva em:\n\n%s" % destino)
+
+    def visualizacao(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Como o leitor abre o arquivo", [
+            ("layout", "Paginas", "lista", "padrao", [
+                ("padrao", "como o leitor preferir"),
+                ("uma_pagina", "uma pagina por vez"),
+                ("continua", "uma coluna continua"),
+                ("duas_colunas_impar_esquerda", "duas colunas (impares a esquerda)"),
+                ("duas_colunas_impar_direita", "duas colunas (impares a direita)"),
+                ("duas_paginas_impar_esquerda", "duas paginas (impares a esquerda)"),
+                ("duas_paginas_impar_direita", "duas paginas, como livro (capa sozinha)")]),
+            ("painel", "Painel lateral", "lista", "padrao", [
+                ("padrao", "como o leitor preferir"), ("nenhum", "fechado"),
+                ("marcadores", "marcadores"), ("miniaturas", "miniaturas das paginas"),
+                ("tela_cheia", "abrir em tela cheia"), ("camadas", "camadas"),
+                ("anexos", "anexos")]),
+            ("pagina", "Abrir na pagina", "inteiro", 1),
+        ], dica="Vale para o Adobe Reader e a maioria dos leitores de PDF.").resultado
+        if valores:
+            self._acabar(lambda doc: ac.definir_visualizacao(
+                doc, valores["layout"], valores["painel"], valores["pagina"]),
+                lambda _: "Visualizacao ao abrir definida.")
+
+    def otimizar(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Reduzir tamanho do arquivo", [
+            ("nivel", "Compressao das imagens", "lista", "media", [
+                ("maxima", "maxima - 72 dpi, arquivo bem menor"),
+                ("alta", "alta - 110 dpi"),
+                ("media", "media - 150 dpi, boa para tela"),
+                ("baixa", "baixa - 200 dpi"),
+                ("minima", "minima - 300 dpi, boa para impressao"),
+                ("sem_perda", "sem perda - so limpa e recomprime")]),
+        ], dica="Imagens acima da resolucao escolhida sao reduzidas e regravadas\n"
+                "em JPEG. Texto e desenhos nao mudam.").resultado
+        if not valores:
+            return
+        self.status("Reduzindo o tamanho... pode levar alguns segundos.")
+        self._acabar(lambda doc: ac.otimizar_tamanho(doc, valores["nivel"]),
+                     lambda r: "Tamanho estimado: %s -> %s (%.0f%% menor)." % (
+                         tamanho_legivel(r[0]), tamanho_legivel(r[1]),
+                         100.0 * (1 - r[1] / float(max(r[0], 1)))))
+
+    def converter_cores(self):
+        if not self._precisa_documento():
+            return
+        valores = FormularioDialog(self, "Converter cores", [
+            ("modelo", "Converter para", "lista", "cinza",
+             [("cinza", "tons de cinza"), ("cmyk", "CMYK (para grafica)")]),
+        ], dica="Vale para texto, desenhos e imagens de todas as paginas.").resultado
+        if valores:
+            self._acabar(lambda doc: ac.converter_cores(doc, valores["modelo"]),
+                         lambda _: "Cores convertidas para %s." % (
+                             "tons de cinza" if valores["modelo"] == "cinza" else "CMYK"))
+
+    def exportar_texto(self):
+        if not self._precisa_documento():
+            return
+        raiz = os.path.splitext(os.path.basename(self.caminho or "documento.pdf"))[0]
+        destino = filedialog.asksaveasfilename(
+            title="Exportar texto", defaultextension=".txt", initialfile=raiz + ".txt",
+            filetypes=[("Texto", "*.txt")])
+        if not destino:
+            return
+        try:
+            n = ac.exportar_texto(self.doc, destino)
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror(APP_NOME, "Erro ao exportar:\n\n%s" % exc)
+            return
+        self.status("%d caracteres gravados em %s" % (n, destino))
+        if n == 0:
+            messagebox.showwarning(APP_NOME, "O documento nao tem texto pesquisavel; o arquivo "
+                                             "ficou vazio.")
+
+    def _copia_temporaria(self):
+        """Grava o documento como esta (com as alteracoes) num arquivo temporario."""
+        nome = os.path.splitext(os.path.basename(self.caminho or "documento.pdf"))[0]
+        pasta = tempfile.mkdtemp(prefix="editor_pdf_")
+        destino = os.path.join(pasta, nome + ".pdf")
+        self.doc.save(destino, garbage=3, deflate=True)
+        return destino
+
+    def abrir_no_leitor(self):
+        if not self._precisa_documento():
+            return
+        try:
+            os.startfile(self._copia_temporaria())
+            self.status("Aberto no leitor de PDF padrao (copia com as alteracoes atuais).")
+        except Exception as exc:
+            messagebox.showerror(APP_NOME, "Nao foi possivel abrir o leitor de PDF:\n\n%s" % exc)
+
+    def imprimir(self):
+        if not self._precisa_documento():
+            return
+        try:
+            # o Windows entrega a impressao ao leitor de PDF padrao
+            os.startfile(self._copia_temporaria(), "print")
+            self.status("Enviado para impressao pelo leitor de PDF padrao.")
+        except Exception as exc:
+            messagebox.showerror(APP_NOME, "Nao foi possivel imprimir. E preciso ter um leitor "
+                                           "de PDF instalado que aceite impressao.\n\n%s" % exc)
 
     def exportar_imagens(self):
         if not self._precisa_documento():
@@ -1476,6 +1607,38 @@ class SubstituirDialog(tk.Toplevel):
         self.destroy()
 
 
+def tamanho_legivel(n):
+    for unidade in ("bytes", "KB", "MB"):
+        if n < 1024 or unidade == "MB":
+            return ("%d %s" if unidade == "bytes" else "%.1f %s") % (n, unidade)
+        n /= 1024.0
+
+
+# Ultimas opcoes escolhidas em cada formulario, para a proxima vez - como os
+# perfis do PDFCreator, mas sem precisar salvar nada a mao.
+ARQUIVO_OPCOES = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
+                              "EditorPDF", "opcoes.json")
+
+
+def ler_opcoes():
+    try:
+        with open(ARQUIVO_OPCOES, encoding="utf-8") as arquivo:
+            return json.load(arquivo)
+    except Exception:
+        return {}
+
+
+def gravar_opcoes(titulo, valores):
+    try:
+        todas = ler_opcoes()
+        todas[titulo] = valores
+        os.makedirs(os.path.dirname(ARQUIVO_OPCOES), exist_ok=True)
+        with open(ARQUIVO_OPCOES, "w", encoding="utf-8") as arquivo:
+            json.dump(todas, arquivo, ensure_ascii=False, indent=1)
+    except Exception:
+        pass          # sem memoria das opcoes o formulario continua funcionando
+
+
 TEXTO_MARCADORES = ("Marcadores: <Pagina> <Paginas> <Titulo> <Autor> <Assunto>\n"
                     "<Arquivo> <Data> <Hora>")
 
@@ -1487,10 +1650,15 @@ class FormularioDialog(tk.Toplevel):
     (chave, rotulo, "lista", padrao, [(valor, texto), ...]). Tipos: texto,
     senha, inteiro, real, lista, marcar e cor (guardada como "#rrggbb").
     `resultado` fica com {chave: valor}, ou None se a pessoa cancelar.
+    Com `lembrar`, o formulario abre com as ultimas opcoes usadas nele
+    (campos de senha nunca sao guardados).
     """
 
-    def __init__(self, pai, titulo, campos, dica=None):
+    def __init__(self, pai, titulo, campos, dica=None, lembrar=True):
         super().__init__(pai)
+        self.lembrar = lembrar
+        self.titulo = titulo
+        guardadas = ler_opcoes().get(titulo, {}) if lembrar else {}
         self.title(titulo)
         self.resizable(False, False)
         self.resultado = None
@@ -1501,6 +1669,8 @@ class FormularioDialog(tk.Toplevel):
         primeiro = None
         for linha, campo in enumerate(campos):
             chave, rotulo, tipo, padrao = campo[:4]
+            if tipo != "senha" and chave in guardadas:
+                padrao = guardadas[chave]
             if tipo == "marcar":
                 var = tk.BooleanVar(value=bool(padrao))
                 ttk.Checkbutton(corpo, text=rotulo, variable=var).grid(
@@ -1571,6 +1741,10 @@ class FormularioDialog(tk.Toplevel):
         except ValueError as exc:
             messagebox.showerror(APP_NOME, str(exc), parent=self)
             return
+        if self.lembrar:
+            senhas = {c[0] for c in self.campos if c[2] == "senha"}
+            gravar_opcoes(self.titulo, {k: v for k, v in self.resultado.items()
+                                        if k not in senhas})
         self.destroy()
 
 
