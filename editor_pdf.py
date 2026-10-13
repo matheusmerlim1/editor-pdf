@@ -41,6 +41,8 @@ MARGEM_DIREITA = 5.0          # margem usada para caber o texto novo na pagina
 LIMITE_ESPACO = 1.5           # espaco extra maximo entre palavras, em larguras de espaco
 COR_CAIXA = "#c8c8ff"         # cor das caixas de texto detectadas
 COR_SELECAO = "#ff0000"       # cor da caixa selecionada
+COR_IMAGEM = "#f08c00"        # cor das caixas de imagem
+PASSO_MOVER = 2.0             # pontos por clique nas setas de mover
 
 
 # --------------------------------------------------------------------------
@@ -187,6 +189,88 @@ TIPOS_IMAGEM = [("Imagens", " ".join("*" + e for e in ac.EXTENSOES_IMAGEM))]
 
 
 # --------------------------------------------------------------------------
+# Imagens da pagina
+# --------------------------------------------------------------------------
+# Uma imagem e desenhada pelo operador "/Nome Do", e a posicao e o tamanho
+# dela vem da matriz em vigor naquele ponto do fluxo de conteudo. Para mover,
+# redimensionar ou apagar, o editor mexe so nessa chamada: acrescenta uma
+# matriz extra antes dela (q ... cm /Nome Do Q) ou a retira. A imagem em si
+# nao e recomprimida, sai de verdade do lugar antigo, e as outras paginas que
+# usam o mesmo arquivo de imagem (um logotipo, por exemplo) nao mudam.
+_DO = re.compile(rb"/([^\s/\[\]()<>{}%]+)\s+Do(?![A-Za-z0-9])")
+
+# o quadrado unitario da imagem tem o eixo y para baixo no MuPDF e para cima no PDF
+_VIRA_UNITARIO = fitz.Matrix(1, 0, 0, -1, 0, 1)
+
+
+def _chamadas_de_imagem(pagina, nomes):
+    """Cada '/Nome Do' de imagem nos fluxos da pagina: (xref do fluxo, inicio, fim, nome)."""
+    documento = pagina.parent
+    chamadas = []
+    for xref in pagina.get_contents():
+        fluxo = documento.xref_stream(xref) or b""
+        for achado in _DO.finditer(fluxo):
+            if achado.group(1).decode("latin-1") in nomes:
+                chamadas.append((xref, achado.start(), achado.end(), achado.group(1)))
+    return chamadas
+
+
+def imagens_da_pagina(pagina):
+    """Imagens desenhadas direto na pagina, na ordem em que sao pintadas.
+
+    Cada uma traz a caixa ("bbox"), a matriz do MuPDF ("transform") e o tamanho
+    em pixels. "movel" e falso quando o editor nao consegue ligar a imagem a
+    uma chamada do fluxo (imagens dentro de formularios ou embutidas no fluxo).
+    """
+    try:
+        nomes = {dados[7] for dados in pagina.get_images(full=True) if dados[9] == 0}
+        infos = [i for i in pagina.get_image_info(xrefs=True) if i.get("xref", 0) > 0]
+        chamadas = _chamadas_de_imagem(pagina, nomes)
+    except Exception:
+        return []
+    movel = len(chamadas) == len(infos)
+    return [{
+        "bbox": tuple(info["bbox"]),
+        "transform": tuple(info["transform"]),
+        "xref": info["xref"],
+        "px": (info.get("width", 0), info.get("height", 0)),
+        "ordem": ordem,
+        "movel": movel,
+    } for ordem, info in enumerate(infos)]
+
+
+def alterar_imagem(pagina, imagem, nova_caixa):
+    """Leva a imagem para `nova_caixa` (Rect); com None, tira a imagem da pagina.
+
+    Devolve a pagina recarregada: o objeto antigo guarda o conteudo de antes.
+    """
+    if not imagem.get("movel"):
+        raise ValueError("esta imagem nao pode ser alterada (fica dentro de outro objeto)")
+    nomes = {dados[7] for dados in pagina.get_images(full=True) if dados[9] == 0}
+    chamadas = _chamadas_de_imagem(pagina, nomes)
+    xref, inicio, fim, nome = chamadas[imagem["ordem"]]
+    if nova_caixa is None:
+        trecho = b""
+    else:
+        # C leva o quadrado unitario da imagem ao lugar atual, em coordenadas
+        # do PDF; G leva a caixa atual a nova. Inserir C.G.C^-1 antes do Do
+        # faz a matriz final virar C.G, ou seja, a imagem acaba na nova caixa.
+        pdf_para_tela = pagina.transformation_matrix
+        atual = fitz.Matrix(_VIRA_UNITARIO) * fitz.Matrix(imagem["transform"]) * ~pdf_para_tela
+        velha, nova = fitz.Rect(imagem["bbox"]), fitz.Rect(nova_caixa)
+        na_tela = (fitz.Matrix(1, 0, 0, 1, -velha.x0, -velha.y0) *
+                   fitz.Matrix(nova.width / velha.width, 0, 0, nova.height / velha.height, 0, 0) *
+                   fitz.Matrix(1, 0, 0, 1, nova.x0, nova.y0))
+        ajuste = ~pdf_para_tela * na_tela * pdf_para_tela
+        extra = atual * ajuste * ~atual
+        trecho = (b"q %.6f %.6f %.6f %.6f %.4f %.4f cm /" % tuple(extra) + nome + b" Do Q")
+    documento = pagina.parent
+    fluxo = documento.xref_stream(xref)
+    documento.update_stream(xref, fluxo[:inicio] + trecho + fluxo[fim:])
+    return documento.reload_page(pagina)
+
+
+# --------------------------------------------------------------------------
 # Aplicacao
 # --------------------------------------------------------------------------
 class EditorPDF(tk.Tk):
@@ -207,6 +291,9 @@ class EditorPDF(tk.Tk):
         self.zoom = 1.4
         self.trechos = []          # trechos de texto da pagina exibida
         self.selecionado = None    # indice em self.trechos
+        self.imagens = []          # imagens da pagina exibida
+        self.img_sel = None        # indice em self.imagens
+        self.arrasto = None        # objeto sendo arrastado na pagina
         self.pilha_undo = []
         self.modificado = False
         self.img_tk = None
@@ -307,6 +394,8 @@ class EditorPDF(tk.Tk):
         quadro_pg.rowconfigure(0, weight=1)
         quadro_pg.columnconfigure(0, weight=1)
         self.canvas.bind("<Button-1>", self.clique_no_canvas)
+        self.canvas.bind("<B1-Motion>", self.arrastar)
+        self.canvas.bind("<ButtonRelease-1>", self.soltar)
         self.canvas.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-1 * (e.delta // 120), "units"))
         self.canvas.bind("<Shift-MouseWheel>", lambda e: self.canvas.xview_scroll(-1 * (e.delta // 120), "units"))
         painel.add(quadro_pg, weight=3)
@@ -314,7 +403,7 @@ class EditorPDF(tk.Tk):
         lateral = ttk.Frame(painel)
         painel.add(lateral, weight=1)
 
-        ttk.Label(lateral, text="Textos encontrados na pagina",
+        ttk.Label(lateral, text="Textos encontrados na pagina (imagens: contorno laranja)",
                   font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 4))
         quadro_lista = ttk.Frame(lateral)
         quadro_lista.pack(fill="both", expand=True)
@@ -340,7 +429,26 @@ class EditorPDF(tk.Tk):
         botoes.pack(fill="x", pady=6)
         ttk.Button(botoes, text="Aplicar alteracao", command=self.aplicar_edicao).pack(side="left")
         ttk.Button(botoes, text="Restaurar", command=self.restaurar_edicao).pack(side="left", padx=6)
-        ttk.Button(botoes, text="Apagar trecho", command=self.apagar_trecho).pack(side="left")
+        ttk.Button(botoes, text="Apagar", command=self.apagar_selecao).pack(side="left")
+
+        # mover o texto ou a imagem selecionada (tambem da para arrastar)
+        mover = ttk.Frame(lateral)
+        mover.pack(fill="x", pady=(2, 0))
+        ttk.Label(mover, text="Mover:").pack(side="left", padx=(0, 4))
+        for rotulo, dx, dy in (("<", -1, 0), ("^", 0, -1), ("v", 0, 1), (">", 1, 0)):
+            ttk.Button(mover, text=rotulo, width=3,
+                       command=lambda dx=dx, dy=dy: self.mover_selecao(
+                           dx * PASSO_MOVER, dy * PASSO_MOVER)).pack(side="left", padx=1)
+        ttk.Label(mover, text="ou arraste na pagina", foreground="#666").pack(side="left", padx=6)
+
+        tamanho = ttk.Frame(lateral)
+        tamanho.pack(fill="x", pady=(6, 0))
+        ttk.Label(tamanho, text="Tamanho da imagem (%):").pack(side="left")
+        self.var_escala = tk.StringVar(value="100")
+        ent_escala = ttk.Entry(tamanho, textvariable=self.var_escala, width=6, justify="center")
+        ent_escala.pack(side="left", padx=4)
+        ent_escala.bind("<Return>", lambda e: self.redimensionar_imagem())
+        ttk.Button(tamanho, text="Aplicar", command=self.redimensionar_imagem).pack(side="left")
 
         # ---- barra de status
         self.var_status = tk.StringVar(value="Abra um arquivo PDF para comecar.")
@@ -352,6 +460,9 @@ class EditorPDF(tk.Tk):
         self.bind("<Control-s>", lambda e: self.salvar())
         self.bind("<Control-z>", lambda e: self.desfazer())
         self.bind("<Control-h>", lambda e: self.localizar_substituir())
+        for tecla, dx, dy in (("Left", -1, 0), ("Right", 1, 0), ("Up", 0, -1), ("Down", 0, 1)):
+            self.bind("<Alt-%s>" % tecla, lambda e, dx=dx, dy=dy: self.mover_selecao(
+                dx * PASSO_MOVER, dy * PASSO_MOVER))
         self.bind("<Prior>", lambda e: self.pagina_anterior())
         self.bind("<Next>", lambda e: self.proxima_pagina())
 
@@ -525,6 +636,8 @@ class EditorPDF(tk.Tk):
         pagina = self.doc[self.pagina_atual]
         self.trechos = self.extrair_trechos(pagina)
         self.selecionado = None
+        self.imagens = imagens_da_pagina(pagina)
+        self.img_sel = None
         self.var_pagina.set(str(self.pagina_atual + 1))
         self.renderizar(pagina)
         self.preencher_lista()
@@ -549,9 +662,17 @@ class EditorPDF(tk.Tk):
         if self.doc is None:
             return
         if self.var_caixas.get():
+            for img in self.imagens:
+                x0, y0, x1, y1 = [v * self.zoom for v in img["bbox"]]
+                self.canvas.create_rectangle(x0, y0, x1, y1, outline=COR_IMAGEM,
+                                             dash=(4, 3), tags="caixa")
             for t in self.trechos:
                 x0, y0, x1, y1 = [v * self.zoom for v in t["bbox"]]
                 self.canvas.create_rectangle(x0, y0, x1, y1, outline=COR_CAIXA, tags="caixa")
+        if self.img_sel is not None and 0 <= self.img_sel < len(self.imagens):
+            x0, y0, x1, y1 = [v * self.zoom for v in self.imagens[self.img_sel]["bbox"]]
+            self.canvas.create_rectangle(x0 - 1, y0 - 1, x1 + 1, y1 + 1,
+                                         outline=COR_IMAGEM, width=2, tags="caixa")
         if self.selecionado is not None and 0 <= self.selecionado < len(self.trechos):
             x0, y0, x1, y1 = [v * self.zoom for v in self.trechos[self.selecionado]["bbox"]]
             self.canvas.create_rectangle(x0 - 1, y0 - 1, x1 + 1, y1 + 1,
@@ -631,17 +752,57 @@ class EditorPDF(tk.Tk):
             return
         x = self.canvas.canvasx(evento.x) / self.zoom
         y = self.canvas.canvasy(evento.y) / self.zoom
+        self.arrasto = None
+        # o texto tem prioridade sobre a imagem que estiver embaixo dele
+        alvo = self._no_ponto(self.trechos, x, y)
+        if alvo is not None:
+            if alvo != self.selecionado:
+                self.selecionar(alvo)
+            caixa = self.trechos[alvo]["bbox"]
+        else:
+            alvo = self._no_ponto(self.imagens, x, y)
+            if alvo is None:
+                self.status("Nenhum texto ou imagem nesse ponto.")
+                return
+            if alvo != self.img_sel:
+                self.selecionar_imagem(alvo)
+            caixa = self.imagens[alvo]["bbox"]
+        self.arrasto = {"inicio": (x, y), "caixa": caixa, "delta": (0.0, 0.0)}
+
+    @staticmethod
+    def _no_ponto(objetos, x, y):
+        """Indice do menor objeto (por area) cuja caixa contem o ponto."""
         alvo, menor = None, None
-        for i, t in enumerate(self.trechos):
-            x0, y0, x1, y1 = t["bbox"]
+        for i, objeto in enumerate(objetos):
+            x0, y0, x1, y1 = objeto["bbox"]
             if x0 <= x <= x1 and y0 <= y <= y1:
                 area = (x1 - x0) * (y1 - y0)
                 if menor is None or area < menor:
                     menor, alvo = area, i
-        if alvo is not None:
-            self.selecionar(alvo)
-        else:
-            self.status("Nenhum texto nesse ponto. Clique sobre um trecho de texto.")
+        return alvo
+
+    def arrastar(self, evento):
+        """Mostra, tracejado, onde o objeto vai ficar enquanto e arrastado."""
+        if not self.arrasto:
+            return
+        x = self.canvas.canvasx(evento.x) / self.zoom
+        y = self.canvas.canvasy(evento.y) / self.zoom
+        dx, dy = x - self.arrasto["inicio"][0], y - self.arrasto["inicio"][1]
+        self.arrasto["delta"] = (dx, dy)
+        x0, y0, x1, y1 = self.arrasto["caixa"]
+        self.canvas.delete("arrasto")
+        self.canvas.create_rectangle((x0 + dx) * self.zoom, (y0 + dy) * self.zoom,
+                                     (x1 + dx) * self.zoom, (y1 + dy) * self.zoom,
+                                     outline=COR_SELECAO, dash=(5, 3), width=2, tags="arrasto")
+
+    def soltar(self, evento):
+        if not self.arrasto:
+            return
+        dx, dy = self.arrasto["delta"]
+        self.arrasto = None
+        self.canvas.delete("arrasto")
+        if abs(dx) * self.zoom > 3 or abs(dy) * self.zoom > 3:   # foi arrasto, nao clique
+            self.mover_selecao(dx, dy)
 
     def selecionar_da_lista(self, evento=None):
         sel = self.lista.curselection()
@@ -650,6 +811,7 @@ class EditorPDF(tk.Tk):
 
     def selecionar(self, indice, rolar_lista=True):
         self.selecionado = indice
+        self.img_sel = None
         t = self.trechos[indice]
         if rolar_lista:
             self.lista.selection_clear(0, "end")
@@ -660,6 +822,21 @@ class EditorPDF(tk.Tk):
         self.lbl_info.config(
             text="Fonte original: %s | tamanho: %.1f | cor: %s\nFonte usada na regravacao: %s"
                  % (t["font"] or "?", t["size"], cor_para_hex(t["rgb"]), t["base14"]))
+        self.desenhar_caixas()
+
+    def selecionar_imagem(self, indice):
+        self.img_sel = indice
+        self.selecionado = None
+        img = self.imagens[indice]
+        x0, y0, x1, y1 = img["bbox"]
+        self.lista.selection_clear(0, "end")
+        self.txt_edicao.delete("1.0", "end")
+        self.var_escala.set("100")
+        aviso = "" if img["movel"] else "\nEsta imagem fica dentro de outro objeto e nao pode ser alterada."
+        self.lbl_info.config(
+            text="Imagem %d: %d x %d pixels, ocupando %.0f x %.0f pt na posicao %.0f, %.0f.%s"
+                 % (indice + 1, img["px"][0], img["px"][1], x1 - x0, y1 - y0, x0, y0, aviso))
+        self.status("Imagem selecionada: arraste para mover, use as setas ou mude o tamanho.")
         self.desenhar_caixas()
 
     def restaurar_edicao(self):
@@ -688,33 +865,104 @@ class EditorPDF(tk.Tk):
         self._atualizar_titulo()
         self.status("Alteracao desfeita.")
 
-    def aplicar_edicao(self):
+    def aplicar_edicao(self, deslocamento=(0.0, 0.0)):
         if self.doc is None or self.selecionado is None:
             messagebox.showinfo(APP_NOME, "Selecione um trecho de texto na pagina ou na lista.")
             return
         novo = self.txt_edicao.get("1.0", "end-1c").replace("\r", " ").replace("\n", " ")
         trecho = self.trechos[self.selecionado]
-        if novo == trecho["text"]:
+        if novo == trecho["text"] and deslocamento == (0.0, 0.0):
             self.status("O texto nao foi alterado.")
+            return
+        if not novo.strip():
+            self.status("O texto esta vazio. Para tirar o trecho, use 'Apagar'.")
             return
         self.guardar_undo()
         try:
-            transbordou = self.substituir_trechos(self.doc[self.pagina_atual], [(trecho, novo)])
+            transbordou = self.substituir_trechos(self.doc[self.pagina_atual],
+                                                  [(trecho, novo, deslocamento)])
         except Exception as exc:
             traceback.print_exc()
             messagebox.showerror(APP_NOME, "Nao foi possivel aplicar a alteracao:\n\n%s" % exc)
             return
         self.modificado = True
-        indice = self.selecionado
+        destino = (trecho["origin"][0] + deslocamento[0], trecho["origin"][1] + deslocamento[1])
         self.carregar_pagina()
         self._atualizar_titulo()
-        if indice < len(self.trechos):
-            self.selecionar(indice)
-        if transbordou:
+        if self.trechos:
+            # o trecho pode mudar de posicao na lista: e procurado pelo lugar
+            perto = min(range(len(self.trechos)), key=lambda i: (
+                (self.trechos[i]["origin"][0] - destino[0]) ** 2 +
+                (self.trechos[i]["origin"][1] - destino[1]) ** 2))
+            self.selecionar(perto)
+        if deslocamento != (0.0, 0.0) and novo == trecho["text"]:
+            self.status("Texto movido %.1f pt na horizontal e %.1f pt na vertical. Ctrl+Z desfaz."
+                        % deslocamento)
+        elif transbordou:
             self.status("Texto alterado (o corpo %.1f foi mantido, mas o texto passou da "
                         "margem da pagina)." % trecho["size"])
         else:
             self.status("Texto alterado. Use 'Salvar' ou 'Salvar como...' para gravar o PDF.")
+
+    def mover_selecao(self, dx, dy):
+        """Desloca o texto ou a imagem selecionada, em pontos."""
+        if self.doc is None:
+            return
+        if self.img_sel is not None:
+            x0, y0, x1, y1 = self.imagens[self.img_sel]["bbox"]
+            self._alterar_imagem(fitz.Rect(x0 + dx, y0 + dy, x1 + dx, y1 + dy), "Imagem movida.")
+        elif self.selecionado is not None:
+            self.aplicar_edicao(deslocamento=(dx, dy))
+        else:
+            self.status("Selecione um texto ou uma imagem para mover.")
+
+    def redimensionar_imagem(self):
+        if self.img_sel is None:
+            messagebox.showinfo(APP_NOME, "Selecione uma imagem na pagina.")
+            return
+        try:
+            fator = float(self.var_escala.get().replace(",", ".").rstrip("%")) / 100.0
+        except ValueError:
+            messagebox.showerror(APP_NOME, "O tamanho precisa ser um numero (100 = como esta).")
+            return
+        if not 0.05 <= fator <= 20:
+            messagebox.showerror(APP_NOME, "Use um tamanho entre 5% e 2000%.")
+            return
+        if fator == 1:
+            return
+        x0, y0, x1, y1 = self.imagens[self.img_sel]["bbox"]
+        # o canto de cima a esquerda fica no lugar e a proporcao e mantida
+        self._alterar_imagem(fitz.Rect(x0, y0, x0 + (x1 - x0) * fator, y0 + (y1 - y0) * fator),
+                             "Imagem redimensionada para %g%%." % (fator * 100))
+
+    def _alterar_imagem(self, nova_caixa, mensagem):
+        imagem = self.imagens[self.img_sel]
+        if not imagem["movel"]:
+            messagebox.showinfo(APP_NOME, "Esta imagem fica dentro de outro objeto do PDF e "
+                                          "nao pode ser alterada pelo editor.")
+            return
+        self.guardar_undo()
+        try:
+            alterar_imagem(self.doc[self.pagina_atual], imagem, nova_caixa)
+        except Exception as exc:
+            traceback.print_exc()
+            if self.pilha_undo:
+                self.pilha_undo.pop()
+            messagebox.showerror(APP_NOME, "Nao foi possivel alterar a imagem:\n\n%s" % exc)
+            return
+        self.modificado = True
+        self.carregar_pagina()
+        self._atualizar_titulo()
+        if nova_caixa is not None and imagem["ordem"] < len(self.imagens):
+            self.selecionar_imagem(imagem["ordem"])
+        self.status(mensagem + " Ctrl+Z desfaz.")
+
+    def apagar_selecao(self):
+        if self.img_sel is not None:
+            if messagebox.askyesno(APP_NOME, "Remover esta imagem da pagina?"):
+                self._alterar_imagem(None, "Imagem removida.")
+        else:
+            self.apagar_trecho()
 
     def apagar_trecho(self):
         if self.doc is None or self.selecionado is None:
@@ -733,16 +981,19 @@ class EditorPDF(tk.Tk):
     def substituir_trechos(self, pagina, pares):
         """Remove os trechos originais e escreve os novos textos na mesma posicao.
 
-        `pares` e uma lista de tuplas (trecho, texto_novo). Passar texto vazio
-        apenas apaga o trecho.
+        `pares` e uma lista de tuplas (trecho, texto_novo) ou
+        (trecho, texto_novo, (dx, dy)) - o terceiro item desloca o texto novo
+        em pontos, a partir do lugar original. Passar texto vazio apenas apaga
+        o trecho.
         """
         if not pares:
             return
+        pares = [tuple(par) + ((0.0, 0.0),) * (3 - len(par)) for par in pares]
         rotacao = pagina.rotation
         desrotacao = pagina.derotation_matrix
 
         # 1) marca as areas a serem apagadas
-        for trecho, _ in pares:
+        for trecho, _, _ in pares:
             ret = fitz.Rect(trecho["bbox"]) * desrotacao
             pagina.add_redact_annot(ret.normalize(), fill=None, cross_out=False)
 
@@ -757,11 +1008,11 @@ class EditorPDF(tk.Tk):
         limite = pagina.rect.x1 - MARGEM_DIREITA
         giro = (360 - rotacao) % 360
         transbordaram = 0
-        for trecho, novo in pares:
+        for trecho, novo, (dx, dy) in pares:
             if not novo.strip():
                 continue
             novo = normalizar_texto(novo)
-            ponto = fitz.Point(*trecho["origin"]) * desrotacao
+            ponto = fitz.Point(trecho["origin"][0] + dx, trecho["origin"][1] + dy) * desrotacao
             tamanho = trecho["size"]     # o corpo original e sempre mantido
 
             # A fonte do proprio documento e preferida: reaproveitada pelo nome

@@ -151,6 +151,31 @@ button.destaque:hover:not(:disabled), .botao.destaque:hover { background: var(--
 .trecho.ativo { outline: 2px solid var(--vermelho); outline-offset: 2px; }
 .trecho.editado { outline-color: var(--verde); }
 
+/* objetos movidos: o lugar antigo coberto com a cor do fundo */
+.cobertura { position: absolute; pointer-events: none; }
+/* alca para arrastar o trecho em edicao */
+.alca {
+  position: absolute; width: 14px; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; line-height: 1; color: #fff; background: var(--vermelho); border-radius: 3px;
+  cursor: grab; z-index: 6; user-select: none; touch-action: none; min-height: 14px;
+}
+.alca:active { cursor: grabbing; }
+/* imagens da pagina */
+.imagem {
+  position: absolute; cursor: pointer; background-size: 100% 100%; touch-action: none;
+  outline: 1px dashed rgba(240, 140, 0, .55); outline-offset: -1px;
+}
+.imagem:hover { outline: 2px dashed #f08c00; }
+.imagem.ativa { outline: 2px solid #f08c00; cursor: move; }
+.imagem.editada { outline-color: var(--verde); }
+.imagem .canto {
+  position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px;
+  background: #f08c00; border: 2px solid #fff; border-radius: 2px; cursor: nwse-resize;
+}
+.setas { display: flex; gap: .25rem; flex-wrap: wrap; }
+.setas button { padding: .2rem .45rem; min-width: 1.9rem; justify-content: center; line-height: 1; }
+#deslocamento { margin: -.2rem 0 0 6.2rem; }
+
 /* ---------- painel lateral ---------- */
 .painel { border-left: 1px solid var(--linha); background: var(--superficie); display: flex; flex-direction: column; min-height: 0; }
 .painel .rotulo {
@@ -170,12 +195,12 @@ button.destaque:hover:not(:disabled), .botao.destaque:hover { background: var(--
 
 .edicao { border-top: 1px solid var(--linha); padding: 1rem 1.1rem 1.2rem; }
 #semSelecao { color: var(--tinta-fraca); font-size: .88rem; }
-#detalhes {
+#detalhes, #detalhesImagem {
   display: grid; grid-template-columns: auto 1fr; gap: .25rem .8rem;
   font-family: var(--mono); font-size: .73rem; margin: 0 0 .9rem;
 }
-#detalhes dt { color: var(--tinta-fraca); }
-#detalhes dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#detalhes dt, #detalhesImagem dt { color: var(--tinta-fraca); }
+#detalhes dd, #detalhesImagem dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ajustes { display: grid; gap: .55rem; margin-bottom: .9rem; }
 .ajuste { display: grid; grid-template-columns: 5.6rem 1fr; align-items: center; gap: .6rem; font-size: .82rem; color: var(--tinta-suave); }
 .ajuste select {
@@ -311,7 +336,7 @@ dialog select, dialog input[type="number"] {
     <p class="rotulo">Textos encontrados na página</p>
     <ul id="lista"></ul>
     <div class="edicao">
-      <p id="semSelecao">Clique em um texto da página, ou na lista acima, para editá-lo.</p>
+      <p id="semSelecao">Clique em um texto da página, ou na lista acima, para editá-lo. Clique em uma imagem para movê-la ou mudar o tamanho.</p>
       <div id="painel" hidden>
         <dl id="detalhes"></dl>
 
@@ -353,13 +378,57 @@ dialog select, dialog input[type="number"] {
           </label>
         </div>
 
+          <div class="ajuste">
+            <span>Posição</span>
+            <span class="setas">
+              <button type="button" data-mover="-1,0" title="Mover para a esquerda" aria-label="Mover para a esquerda">←</button>
+              <button type="button" data-mover="0,-1" title="Mover para cima" aria-label="Mover para cima">↑</button>
+              <button type="button" data-mover="0,1" title="Mover para baixo" aria-label="Mover para baixo">↓</button>
+              <button type="button" data-mover="1,0" title="Mover para a direita" aria-label="Mover para a direita">→</button>
+              <button type="button" id="voltarPosicao" title="Voltar ao lugar original" aria-label="Voltar ao lugar original">↺</button>
+            </span>
+          </div>
+          <p class="dica" id="deslocamento">no lugar original</p>
+
         <div class="acoes-edicao">
           <button type="button" id="restaurar">Restaurar</button>
           <button type="button" id="apagar">Apagar trecho</button>
         </div>
         <p class="dica">
-          Clique no texto da página e digite direto nele. Esc cancela ·
+          Clique no texto da página e digite direto nele. Para mover, arraste a
+          alça vermelha ⠿ ou use Alt + setas. Esc cancela ·
           Ctrl+Z desfaz · Ctrl+H substitui · Ctrl+S baixa
+        </p>
+      </div>
+      <div id="painelImagem" hidden>
+        <dl id="detalhesImagem"></dl>
+        <div class="ajustes">
+          <label class="ajuste">
+            <span>Tamanho</span>
+            <span class="passo">
+              <button type="button" id="menorImagem" aria-label="Diminuir a imagem">&minus;</button>
+              <input type="number" id="escalaImagem" step="5" min="5" max="1000" aria-label="Tamanho da imagem em porcentagem">
+              <span>%</span>
+              <button type="button" id="maiorImagem" aria-label="Aumentar a imagem">+</button>
+            </span>
+          </label>
+          <div class="ajuste">
+            <span>Posição</span>
+            <span class="setas">
+              <button type="button" data-mover-imagem="-1,0" aria-label="Mover para a esquerda">←</button>
+              <button type="button" data-mover-imagem="0,-1" aria-label="Mover para cima">↑</button>
+              <button type="button" data-mover-imagem="0,1" aria-label="Mover para baixo">↓</button>
+              <button type="button" data-mover-imagem="1,0" aria-label="Mover para a direita">→</button>
+            </span>
+          </div>
+        </div>
+        <div class="acoes-edicao">
+          <button type="button" id="restaurarImagem">Restaurar</button>
+          <button type="button" id="apagarImagem">Apagar imagem</button>
+        </div>
+        <p class="dica">
+          Arraste a imagem para mover e o quadradinho do canto para mudar o
+          tamanho. Setas movem 1 pt (Shift: 10) · Delete apaga · Ctrl+Z desfaz
         </p>
       </div>
     </div>
@@ -436,8 +505,8 @@ dialog select, dialog input[type="number"] {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
-<script src="exemplo.js?v=2026-10-12a"></script>
-<script src="editor.js?v=2026-10-12a"></script>
+<script src="exemplo.js?v=2026-10-12b"></script>
+<script src="editor.js?v=2026-10-12b"></script>
 <!-- === Botao de volta ao portfolio - cole antes de </body> === -->
 <a id="mr-portfolio-btn" href="https://matheusmerlim1.github.io/" target="_blank" rel="noopener"
    aria-label="Abrir o portf&oacute;lio de Matheus Raposo" title="Ver todos os meus projetos">

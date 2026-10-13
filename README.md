@@ -48,10 +48,12 @@ ficar escondido embaixo de um retângulo.
 | **Ajustar o trecho** | Tamanho da letra, fonte (sem serifa, com serifa, monoespaçada), negrito, itálico e alinhamento (como no original, à esquerda ou justificado). |
 | **Localizar e substituir** | Troca uma palavra ou frase em uma página ou no documento inteiro de uma só vez. |
 | **Apagar trecho** | Tira um texto da página. |
+| **Mover texto** | Arraste o trecho para outro lugar da página (na versão online, pela alça vermelha ⠿ ao lado dele) ou use as setas do painel; `Alt` + setas do teclado também movem. Fonte, corpo e cor são mantidos. |
+| **Mover, redimensionar e apagar imagens** | Clique numa imagem (contorno laranja) e arraste para mover; mude o tamanho pelo canto (online) ou pela porcentagem, mantendo a proporção. A imagem sai de verdade do lugar antigo, sem perder qualidade, e as outras páginas que usam a mesma imagem não mudam. |
 | **Desfazer** | `Ctrl+Z` volta atrás (25 níveis na versão de mesa). |
 | **Salvar em PDF** | O resultado é um PDF comum, que abre em qualquer leitor. |
 
-Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+H` localizar e substituir.
+Atalhos: `Ctrl+O` abrir · `Ctrl+S` salvar/baixar · `Ctrl+Z` desfazer · `Ctrl+H` localizar e substituir · `Alt`+setas move o texto · setas e `Delete` movem e apagam a imagem selecionada (online).
 
 ### Acabamento do documento
 
@@ -160,6 +162,8 @@ Arquivos principais: [`editor_pdf.py`](editor_pdf.py) (`substituir_trechos()`) e
 
 ## Limitações conhecidas
 
+- **Mover texto na versão online** cobre o lugar antigo com a cor do fundo. Se outra coisa for colocada exatamente ali (uma imagem movida, por exemplo), essa cobertura aparece por cima dela. A versão de mesa remove o texto de verdade e não tem esse problema.
+- **Imagens dentro de outros objetos** do PDF (formulários, padrões) e imagens embutidas direto no fluxo de conteúdo não podem ser movidas; o editor avisa quando é o caso.
 - **PDFs digitalizados** (somente imagem) não têm texto para identificar; seria necessário OCR. Os dois editores avisam quando isso acontece.
 - Na **versão online** o texto antigo é coberto, e não apagado: ele continua dentro do arquivo. Para retirá-lo de verdade, use a versão de mesa.
 - A edição é feita por trecho (span), não por parágrafo: um texto muito maior que o original não reorganiza a quebra de linha sozinho. Como o tamanho da letra é preservado, o que passar da margem fica fora da área visível da página — o editor avisa quando isso acontece.

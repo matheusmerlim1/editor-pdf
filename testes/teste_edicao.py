@@ -251,6 +251,57 @@ def main():
         d.close()
 
 
+    print("\nMover texto:")
+    d = fitz.open()
+    d.new_page().insert_text((72, 300), "Texto que muda de lugar", fontname="hebo", fontsize=14)
+    trecho = EditorPDF.extrair_trechos(EditorPDF, d[0])[0]
+    EditorPDF.substituir_trechos(EditorPDF, d[0], [(trecho, trecho["text"], (100.0, 50.0))])
+    movido = EditorPDF.extrair_trechos(EditorPDF, d[0])
+    conferir(len(movido) == 1, "continua um trecho so (obtidos: %d)" % len(movido))
+    conferir(abs(movido[0]["origin"][0] - 172) < 0.5 and abs(movido[0]["origin"][1] - 350) < 0.5,
+             "texto foi para 172, 350 (obtido: %.1f, %.1f)" % movido[0]["origin"])
+    conferir(movido[0]["base14"] == "hebo" and abs(movido[0]["size"] - 14) < 0.01,
+             "fonte e corpo mantidos ao mover")
+    d.close()
+
+    print("\nMover, redimensionar e apagar imagem:")
+    import io
+    from PIL import Image
+    from editor_pdf import imagens_da_pagina, alterar_imagem
+    png = io.BytesIO()
+    Image.new("RGB", (200, 100), (30, 120, 200)).save(png, "PNG")
+    d = fitz.open()
+    for giro in (0, 90):
+        p = d.new_page()
+        p.insert_image(fitz.Rect(100, 100, 300, 200), stream=png.getvalue())
+        p.insert_image(fitz.Rect(100, 400, 200, 450), stream=png.getvalue())
+        p.set_rotation(giro)
+    outra = d.new_page()                      # usa o mesmo arquivo de imagem
+    outra.insert_image(fitz.Rect(50, 50, 250, 150), stream=png.getvalue())
+    for n in (0, 1):
+        p = d[n]
+        imagens = imagens_da_pagina(p)
+        conferir(len(imagens) == 2 and all(i["movel"] for i in imagens),
+                 "pagina girada %d: 2 imagens moveis encontradas" % p.rotation)
+        p = alterar_imagem(p, imagens[0], fitz.Rect(300, 500, 400, 550))
+        caixas = [fitz.Rect(i["bbox"]) for i in imagens_da_pagina(p)]
+        conferir(abs(caixas[0] - fitz.Rect(300, 500, 400, 550)) < 0.1,
+                 "pagina girada %d: imagem movida e reduzida" % p.rotation)
+        conferir(abs(caixas[1] - fitz.Rect(100, 400, 200, 450)) < 0.1,
+                 "pagina girada %d: a outra imagem ficou no lugar" % p.rotation)
+        p = alterar_imagem(p, imagens_da_pagina(p)[1], None)
+        conferir(len(imagens_da_pagina(p)) == 1,
+                 "pagina girada %d: imagem apagada" % p.rotation)
+    conferir(abs(fitz.Rect(imagens_da_pagina(d[2])[0]["bbox"]) - fitz.Rect(50, 50, 250, 150)) < 0.1,
+             "a mesma imagem em outra pagina nao mudou")
+    saida = os.path.join(pasta, "imagens_editadas.pdf")
+    d.save(saida, garbage=4, deflate=True)
+    d.close()
+    d = fitz.open(saida)
+    conferir(len(imagens_da_pagina(d[0])) == 1 and len(imagens_da_pagina(d[2])) == 1,
+             "alteracoes das imagens gravadas no arquivo")
+    d.close()
+
     print("\nDeteccao de transbordo:")
     conferir(EditorPDF.passa_da_margem("x" * 400, "helv", 18, 400) is True,
              "texto comprido e sinalizado")
