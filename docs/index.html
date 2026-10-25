@@ -103,6 +103,13 @@ code, kbd { font-family: var(--mono); font-size: .87em; }
 .topo nav a { color: var(--tinta-suave); text-decoration: none; }
 .topo nav a:hover { color: var(--azul); }
 @media (max-width: 620px) { .topo nav a.opcional { display: none; } }
+/* celular: o nome quebrava em três linhas e o botão do portfólio cobria o GitHub; fica só o
+   atalho para o editor, e a barra reserva o canto do botão */
+@media (max-width: 520px) {
+  .marca { white-space: nowrap; }
+  .topo nav a:not(:first-child) { display: none; }
+  .topo .envolucro { padding-right: 44px; }
+}
 
 /* -------- hero -------- */
 .hero { padding: 4.5rem 0 2.5rem; }
@@ -136,6 +143,8 @@ figure { margin: 0; }
   margin-top: 3rem; border: 1px solid var(--linha); border-radius: 12px; overflow: hidden;
   background: var(--superficie-2); box-shadow: var(--sombra);
 }
+/* sem height:auto a imagem guardava os 1230px do atributo e espremia na largura do celular */
+.captura img { display: block; width: 100%; height: auto; }
 figcaption {
   margin-top: .8rem; font-size: .88rem; color: var(--tinta-fraca); max-width: var(--medida);
 }
@@ -167,6 +176,8 @@ pre {
   border: 1px solid var(--linha); border-radius: 8px; overflow-x: auto;
   font-family: var(--mono); font-size: .82rem; line-height: 1.6; color: var(--tinta);
 }
+/* no cartão estreito da instalação a URL do git clone saía cortada: lá o comando quebra a linha */
+.caixa pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 pre .cm { color: var(--tinta-fraca); }
 pre .fn { color: var(--azul); }
 
